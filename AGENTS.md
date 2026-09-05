@@ -8,7 +8,7 @@
 ## What this is
 
 «One paragraph: what this app does, for whom, and what "working" means.»
-An application for creating a budget for anyone. Collects income and expence posts from the user and generates a report. The budget can be given a name, timespan and a target budget. Expence and income categories can be created on the fly on each row. Each category can also be edited and deleted. Every row can be commented. Income, expence and report are on separate tabs in the ui. 
+Build a budgeting app for tracking income and expence. You can add, edit and delete income and expence categories on its own tab in the ui. On each row you select category and give a comment and the amount of money. Income and expences are on different tabs in the ui. We will also need a report tab where we summarize each category and calculate a final buget balance. No user-accounts as this works locally at home on one shared device
 
 ## Commands
 

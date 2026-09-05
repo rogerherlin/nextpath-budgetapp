@@ -8,7 +8,7 @@
 ## What this is
 
 «One paragraph: what this app does, for whom, and what "working" means.»
-An application for creating a budget for anyone. Collects income and expence posts from the user and generates a report. The budget can be given a name, timespan and a target budget. Expence and income categories can be created on the fly on each row. Each category can also be deleted. Every row can be commented. Income, expence and report are on separate tabs in the ui. 
+An application for creating a budget for anyone. Collects income and expence posts from the user and generates a report. The budget can be given a name, timespan and a target budget. Expence and income categories can be created on the fly on each row. Each category can also be edited and deleted. Every row can be commented. Income, expence and report are on separate tabs in the ui. 
 
 ## Commands
 

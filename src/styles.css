@@ -1,0 +1,13 @@
+:root {
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 56rem;
+  padding: 1.5rem;
+}

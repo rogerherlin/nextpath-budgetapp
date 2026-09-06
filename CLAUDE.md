@@ -1,0 +1,1 @@
+echo "@AGENTS.md" > CLAUDE.md

@@ -1,0 +1,3 @@
+- AGENTS.md “What this is” omits budgets’ time span and description, which prompts.md now includes.
+- Vitest 2 / tinypool can dump RangeError: Maximum call stack size exceeded after a failed test in this environment.
+- Categories tab Add/Edit is in ui-ux.md and Files to Modify, but categories.md has no ACs for those UI actions (stops at AC14).

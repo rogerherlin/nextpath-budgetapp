@@ -1,5 +1,5 @@
 import { isNameTaken, nextCopyName, normalizeName } from "./names";
-import { saveStore } from "./store";
+import { notify, persist } from "./persist";
 import type { Budget, Category, DateParts, Entry } from "./types";
 
 export type CreateBudgetResult =
@@ -18,6 +18,7 @@ let budgets: Budget[] = [];
 
 export function resetStore(initial: Budget[] = []): void {
   budgets = initial;
+  notify();
 }
 
 export function mapBudget(
@@ -25,18 +26,30 @@ export function mapBudget(
   mapper: (budget: Budget) => Budget,
 ): void {
   budgets = budgets.map((budget) => (budget.id === id ? mapper(budget) : budget));
+  persist();
 }
 
 export function deleteBudget(id: string): void {
   budgets = budgets.filter((budget) => budget.id !== id);
-  saveStore();
+  persist();
 }
+
+export type UpdateBudgetInput = {
+  name: string;
+  description?: string;
+  startDate?: DateParts | null;
+  endDate?: DateParts | null;
+  targetLeftoverCents?: number | null;
+};
 
 export function updateBudget(
   id: string,
-  input: { name: string },
+  input: UpdateBudgetInput,
 ): CreateBudgetResult {
   const name = normalizeName(input.name);
+  if (name === "") {
+    return { ok: false, error: "Name is required." };
+  }
   const otherNames = budgets
     .filter((budget) => budget.id !== id)
     .map((budget) => budget.name);
@@ -44,8 +57,22 @@ export function updateBudget(
     return { ok: false, error: "The name is already in use." };
   }
   budgets = budgets.map((budget) =>
-    budget.id === id ? { ...budget, name } : budget,
+    budget.id === id
+      ? {
+          ...budget,
+          name,
+          description: input.description ?? budget.description,
+          startDate:
+            input.startDate !== undefined ? input.startDate : budget.startDate,
+          endDate: input.endDate !== undefined ? input.endDate : budget.endDate,
+          targetLeftoverCents:
+            input.targetLeftoverCents !== undefined
+              ? input.targetLeftoverCents
+              : budget.targetLeftoverCents,
+        }
+      : budget,
   );
+  persist();
   return { ok: true };
 }
 
@@ -93,7 +120,7 @@ export function copyBudget(id: string): void {
       expenseEntries: source.expenseEntries.map(remapEntry),
     },
   ];
-  saveStore();
+  persist();
 }
 
 export function createBudget(input: CreateBudgetInput): CreateBudgetResult {
@@ -119,7 +146,7 @@ export function createBudget(input: CreateBudgetInput): CreateBudgetResult {
       expenseEntries: [],
     },
   ];
-  saveStore();
+  persist();
   return { ok: true };
 }
 

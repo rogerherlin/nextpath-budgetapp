@@ -11,3 +11,48 @@ main {
   max-width: 56rem;
   padding: 1.5rem;
 }
+
+h1,
+h2 {
+  margin: 0 0 0.75rem;
+}
+
+ul {
+  padding-left: 1.25rem;
+}
+
+li,
+form p,
+table {
+  margin-bottom: 0.5rem;
+}
+
+button,
+input,
+select {
+  margin-right: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+label {
+  display: inline-block;
+  min-width: 8rem;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ddd;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.category-columns {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+}

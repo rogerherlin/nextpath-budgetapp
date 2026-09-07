@@ -18,6 +18,12 @@ function isValidCalendarDate(date: DateParts): boolean {
   );
 }
 
+export function formatDate(date: DateParts): string {
+  const day = String(date.day).padStart(2, "0");
+  const month = String(date.month).padStart(2, "0");
+  return `${day}.${month}.${date.year}`;
+}
+
 export function parseDate(input: string): ParseDateResult {
   if (input === "") {
     return { ok: true, date: null };

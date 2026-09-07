@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseDate } from "./dates";
+import { formatDate, parseDate } from "./dates";
+
+describe("AC14: Format date with leading zeros", () => {
+  it("AC14: Format date with leading zeros", () => {
+    expect(formatDate({ year: 2026, month: 9, day: 5 })).toBe("05.09.2026");
+  });
+});
 
 describe("AC15: Parse valid date", () => {
   it("AC15: Parse valid date", () => {

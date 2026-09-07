@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -162,10 +162,23 @@ describe("AC8: App uses the same path every time", () => {
     expect(isAbsolute(APP_BUDGETS_FILE)).toBe(true);
     expect(APP_BUDGETS_FILE.endsWith("budgets.json")).toBe(true);
     expect(APP_BUDGETS_FILE).toBe(join(process.cwd(), "data", "budgets.json"));
-    loadStore();
-    expect(existsSync(APP_BUDGETS_FILE)).toBe(true);
-    expect(existsSync(join(dirname(APP_BUDGETS_FILE), "other.json"))).toBe(
-      false,
-    );
+    withBudgetsFile((path) => {
+      loadStore(path);
+      expect(readdirSync(dirname(path))).toEqual(["budgets.json"]);
+    });
+  });
+});
+
+describe("AC9: Invalid store JSON is not overwritten", () => {
+  it("AC9: Invalid store JSON is not overwritten", () => {
+    withBudgetsFile((path) => {
+      writeFileSync(path, "{}");
+      const result = loadStore(path);
+      expect(result).toEqual({
+        ok: false,
+        error: "Could not read budgets.json.",
+      });
+      expect(readFileSync(path, "utf8")).toBe("{}");
+    });
   });
 });

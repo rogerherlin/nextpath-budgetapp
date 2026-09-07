@@ -9,11 +9,15 @@ export function addEntry(
   input: Omit<Entry, "id">,
 ): CreateBudgetResult {
   const budget = listBudgets().find((item) => item.id === budgetId);
-  const incomeCategoryMissing =
-    kind === "income" &&
-    !!budget &&
-    !budget.incomeCategories.some((category) => category.id === input.categoryId);
-  if (input.categoryId === "" || incomeCategoryMissing) {
+  const categories = budget
+    ? kind === "income"
+      ? budget.incomeCategories
+      : budget.expenseCategories
+    : [];
+  const categoryMissing = !categories.some(
+    (category) => category.id === input.categoryId,
+  );
+  if (input.categoryId === "" || categoryMissing) {
     return { ok: false, error: "Select a category." };
   }
   const entry: Entry = {

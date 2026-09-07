@@ -82,12 +82,17 @@ Add/edit/delete entries. Amounts are integer cents (including `0` and negative).
 **When** `addEntry("b2", "income", { categoryId: <b2 category id>, comment: "x", amountCents: 1, date: null })`
 **Then** `"b1"` still has `1` income entry and `"b2"` has `1` income entry with a different `id`
 
+### AC15: Reject expense entry with income category
+**Given** income category `"c1"` only
+**When** `addEntry("b1", "expense", { categoryId: "c1", comment: "x", amountCents: 100, date: null })`
+**Then** `{ ok: false, error: "Select a category." }` and `expenseEntries` is `[]`
+
 ## Files to Modify
 
 | File | Change |
 |---|---|
 | `src/entries.ts` | `addEntry`, `updateEntry`, `deleteEntry`. |
-| `src/entries.test.ts` | Tests for AC1–AC10, AC14. |
+| `src/entries.test.ts` | Tests for AC1–AC10, AC14–AC15. |
 | `src/ui/EntriesTab.tsx` | Income/Expenses tables and form; AC11–AC13. |
 | `src/ui/EntriesTab.test.tsx` | Tests for AC11–AC13. |
 | `src/ui/BudgetScreen.tsx` | Tabs `Income`, `Expenses`. |
@@ -115,6 +120,7 @@ Add/edit/delete entries. Amounts are integer cents (including `0` and negative).
 | EntriesTab | AC12 EUR | Income form | render | text `EUR` beside amount |
 | EntriesTab | AC13 bad amount | `"abc"` | submit | `Enter a valid amount.`, 0 new rows |
 | addEntry | AC14 isolate | b1 has 1 | add on b2 | different ids |
+| addEntry | AC15 wrong kind | income cat on expense | add | `"Select a category."` |
 
 ## Spec Readiness checklist
 

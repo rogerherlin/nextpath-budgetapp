@@ -59,6 +59,9 @@ export function updateCategory(
   input: { name: string },
 ): CreateBudgetResult {
   const name = normalizeName(input.name);
+  if (name === "") {
+    return { ok: false, error: "Name is required." };
+  }
   const budget = listBudgets().find((item) => item.id === budgetId);
   const otherNames = budget
     ? listContaining(budget, categoryId)

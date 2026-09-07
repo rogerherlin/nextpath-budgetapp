@@ -69,16 +69,22 @@ Load `budgets.json` from a fixed app-data directory (path injected for tests). I
 
 ### AC8: App uses the same path every time
 **Given** `APP_BUDGETS_FILE` is the configured absolute path ending in `budgets.json`
-**When** load or save runs
-**Then** no other filename is read or written for budget data
+**When** load or save runs against a directory that contains only that file
+**Then** `APP_BUDGETS_FILE` is absolute and ends with `budgets.json`, and that directory still contains only `budgets.json` (tests must use a temp directory, never the real app-data file)
+
+### AC9: Invalid store JSON is not overwritten
+**Given** `budgets.json` contents `{}`
+**When** `loadStore(path)`
+**Then** the return value is `{ ok: false, error: "Could not read budgets.json." }` and the file contents are still exactly `{}`
 
 ## Files to Modify
 
 | File | Change |
 |---|---|
-| `src/store.ts` | `loadStore`, `saveStore`, serialize/deserialize; call save from mutating budget/category/entry APIs. |
-| `src/store.test.ts` | Tests for AC1–AC8 using a temp directory. |
+| `src/store.ts` | `loadStore`, `saveStore`, `parseStoreJson`; serialize/deserialize; call save from mutating APIs. |
+| `src/store.test.ts` | Tests for AC1–AC9 using a temp directory. |
 | `src/paths.ts` | Export `APP_BUDGETS_FILE` (fixed app-data folder + `budgets.json`). |
+| `vite.config.ts` | PUT `/api/store` uses `parseStoreJson`; reject invalid bodies without writing. |
 
 ## Risk
 
@@ -96,7 +102,8 @@ Load `budgets.json` from a fixed app-data directory (path injected for tests). I
 | deleteBudget | AC5 autosave | Summer+Winter on disk | delete Summer | disk length 1 Winter |
 | copyBudget | AC6 autosave | Summer on disk | copy | disk names Summer and Summer (copy1) |
 | loadStore | AC7 corrupt | `NOT JSON` | load | error `Could not read budgets.json.`, file unchanged |
-| loadStore/saveStore | AC8 path | APP_BUDGETS_FILE | load/save | only that path |
+| loadStore/saveStore | AC8 path | temp dir + APP_BUDGETS_FILE | load/save | absolute `…/budgets.json`; dir has only that file |
+| loadStore | AC9 invalid object | file `{}` | load | error `Could not read budgets.json.`, file unchanged |
 
 ## Spec Readiness checklist
 

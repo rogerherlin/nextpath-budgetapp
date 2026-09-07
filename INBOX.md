@@ -2,3 +2,7 @@
 - Vitest 2 / tinypool can dump RangeError: Maximum call stack size exceeded after a failed test in this environment.
 - Categories tab Add/Edit is in ui-ux.md and Files to Modify, but categories.md has no ACs for those UI actions (stops at AC14).
 - prompts.md TDD item 6 points at specs/features/persitence.md; the spec file is persistence.md.
+- `updateEntry` does not reject a category from the other list (addEntry now does for both kinds).
+- `parseStoreJson` accepts any array as `budgets` (no per-budget field checks).
+- Browser persist PUT is fire-and-forget; a failed save is not shown to the user.
+- `updateBudget` rejects an empty name, but lifecycle.md has no named AC or test for that.

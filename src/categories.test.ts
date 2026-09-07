@@ -200,3 +200,20 @@ describe("AC14: Categories are not shared across budgets", () => {
     expect(b2?.incomeCategories[0]?.id).not.toBe(b1?.incomeCategories[0]?.id);
   });
 });
+
+describe("AC15: Reject empty name on rename", () => {
+  it("AC15: Reject empty name on rename", () => {
+    resetStore([
+      {
+        ...emptyBudget("b1"),
+        incomeCategories: [{ id: "c1", name: "Salary" }],
+      },
+    ]);
+    const result = updateCategory("b1", "c1", { name: "" });
+    expect(result).toEqual({ ok: false, error: "Name is required." });
+    const budget = listBudgets().find((item) => item.id === "b1");
+    expect(budget?.incomeCategories.find((item) => item.id === "c1")?.name).toBe(
+      "Salary",
+    );
+  });
+});

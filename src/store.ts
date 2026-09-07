@@ -42,16 +42,40 @@ export type LoadStoreResult =
   | { ok: true; value: StoreFile }
   | { ok: false; error: string };
 
+function isStoreFile(data: unknown): data is StoreFile {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+  if (!("version" in data) || data.version !== 1) {
+    return false;
+  }
+  if (!("budgets" in data) || !Array.isArray(data.budgets)) {
+    return false;
+  }
+  return true;
+}
+
+export function parseStoreJson(raw: string): LoadStoreResult {
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (!isStoreFile(data)) {
+      return { ok: false, error: "Could not read budgets.json." };
+    }
+    return { ok: true, value: data };
+  } catch {
+    return { ok: false, error: "Could not read budgets.json." };
+  }
+}
+
 export function loadStore(path: string = APP_BUDGETS_FILE): LoadStoreResult {
   if (!existsSync(path)) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, serializeStore(EMPTY_STORE));
     return applyLoadedStore(path, EMPTY_STORE);
   }
-  try {
-    const store = JSON.parse(readFileSync(path, "utf8")) as StoreFile;
-    return applyLoadedStore(path, store);
-  } catch {
-    return { ok: false, error: "Could not read budgets.json." };
+  const parsed = parseStoreJson(readFileSync(path, "utf8"));
+  if (!parsed.ok) {
+    return parsed;
   }
+  return applyLoadedStore(path, parsed.value);
 }

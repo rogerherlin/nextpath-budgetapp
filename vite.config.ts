@@ -4,8 +4,7 @@ import { dirname } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vitest/config";
 import { APP_BUDGETS_FILE } from "./src/paths";
-import { loadStore, serializeStore } from "./src/store";
-import type { Budget } from "./src/types";
+import { loadStore, parseStoreJson, serializeStore } from "./src/store";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -47,18 +46,14 @@ function storeApiPlugin(): Plugin {
         }
         if (req.method === "PUT") {
           void readBody(req).then((raw) => {
-            try {
-              const parsed = JSON.parse(raw) as { budgets?: Budget[] };
-              const budgets = parsed.budgets ?? [];
-              mkdirSync(dirname(APP_BUDGETS_FILE), { recursive: true });
-              writeFileSync(
-                APP_BUDGETS_FILE,
-                serializeStore({ version: 1, budgets }),
-              );
-              sendJson(res, 200, serializeStore({ version: 1, budgets }));
-            } catch {
+            const parsed = parseStoreJson(raw);
+            if (!parsed.ok) {
               sendJson(res, 400, JSON.stringify({ error: "Invalid store." }));
+              return;
             }
+            mkdirSync(dirname(APP_BUDGETS_FILE), { recursive: true });
+            writeFileSync(APP_BUDGETS_FILE, serializeStore(parsed.value));
+            sendJson(res, 200, serializeStore(parsed.value));
           });
           return;
         }

@@ -267,3 +267,18 @@ describe("AC14: Entries are not shared across budgets", () => {
     expect(b2?.incomeEntries[0]?.id).not.toBe(b1?.incomeEntries[0]?.id);
   });
 });
+
+describe("AC15: Reject expense entry with income category", () => {
+  it("AC15: Reject expense entry with income category", () => {
+    resetStore([budgetWithIncomeSalary("b1")]);
+    const result = addEntry("b1", "expense", {
+      categoryId: "c1",
+      comment: "x",
+      amountCents: 100,
+      date: null,
+    });
+    expect(result).toEqual({ ok: false, error: "Select a category." });
+    const budget = listBudgets().find((item) => item.id === "b1");
+    expect(budget?.expenseEntries).toEqual([]);
+  });
+});

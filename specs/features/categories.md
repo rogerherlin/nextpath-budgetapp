@@ -82,12 +82,17 @@ A Categories tab with two lists. Names are trimmed; uniqueness is case-insensiti
 **When** `addCategory("b2", "income", { name: "Salary" })`
 **Then** `"b1"` still has `1` income category and `"b2"` has `1` income category with a different `id`
 
+### AC15: Reject empty name on rename
+**Given** income category `"c1"` named `"Salary"`
+**When** `updateCategory("b1", "c1", { name: "" })`
+**Then** `{ ok: false, error: "Name is required." }` and `"c1"` is still named `"Salary"`
+
 ## Files to Modify
 
 | File | Change |
 |---|---|
 | `src/categories.ts` | `addCategory`, `updateCategory`, `deleteCategory`, `categoryEntryCount`. |
-| `src/categories.test.ts` | Tests for AC1–AC10, AC14. |
+| `src/categories.test.ts` | Tests for AC1–AC10, AC14–AC15. |
 | `src/ui/CategoriesTab.tsx` | Two lists, add/edit/delete, confirms AC11–AC13. |
 | `src/ui/CategoriesTab.test.tsx` | Tests for AC11–AC13. |
 | `src/ui/BudgetScreen.tsx` | Tab labelled `Categories`. |
@@ -115,6 +120,7 @@ A Categories tab with two lists. Names are trimmed; uniqueness is case-insensiti
 | CategoriesTab | AC12 light | 0 entries | delete Salary | `Delete category “Salary”?` |
 | CategoriesTab | AC13 heavy | 3 entries | delete Rent | `Delete category “Rent”? 3 entries will be deleted.` |
 | addCategory | AC14 isolate | b1 has Salary | add Salary on b2 | different ids, b1 count 1 |
+| updateCategory | AC15 empty | Salary | `""` | `"Name is required."`, still Salary |
 
 ## Spec Readiness checklist
 

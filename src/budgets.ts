@@ -1,5 +1,6 @@
-import type { Budget, Category, DateParts, Entry } from "./types";
 import { isNameTaken, nextCopyName, normalizeName } from "./names";
+import { saveStore } from "./store";
+import type { Budget, Category, DateParts, Entry } from "./types";
 
 export type CreateBudgetResult =
   | { ok: true }
@@ -28,6 +29,7 @@ export function mapBudget(
 
 export function deleteBudget(id: string): void {
   budgets = budgets.filter((budget) => budget.id !== id);
+  saveStore();
 }
 
 export function updateBudget(
@@ -91,6 +93,7 @@ export function copyBudget(id: string): void {
       expenseEntries: source.expenseEntries.map(remapEntry),
     },
   ];
+  saveStore();
 }
 
 export function createBudget(input: CreateBudgetInput): CreateBudgetResult {
@@ -116,6 +119,7 @@ export function createBudget(input: CreateBudgetInput): CreateBudgetResult {
       expenseEntries: [],
     },
   ];
+  saveStore();
   return { ok: true };
 }
 

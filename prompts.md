@@ -35,8 +35,8 @@ with no tests yet. It must pass green. Show the output.
 
 6) TDD: kriteeri kerrallaan (2–3 h) (./features/budget-lifecycle.md..report.md,  AC1..ACn)
 
-Run the `tdd` workflow from @AGENTS.md for AC18 in
-specs/features/formatting.md.
+Run the `tdd` workflow from @AGENTS.md for AC9 in
+specs/features/report.md.
 
 RED first: write the failing test for this AC only. The test name states
 the AC. Run it and paste the real output. Confirm it fails because the

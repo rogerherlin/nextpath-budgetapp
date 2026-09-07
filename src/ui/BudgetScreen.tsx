@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CategoriesTab } from "./CategoriesTab";
 import { EntriesTab } from "./EntriesTab";
+import { ReportTab } from "./ReportTab";
 
 const TABS = [
   { label: "Categories", id: "categories" },
@@ -22,6 +23,7 @@ export function BudgetScreen({ budgetId }: { budgetId: string }) {
       ))}
       {tab === "categories" ? <CategoriesTab budgetId={budgetId} /> : null}
       {tab === "income" ? <EntriesTab /> : null}
+      {tab === "report" ? <ReportTab budgetId={budgetId} /> : null}
     </>
   );
 }

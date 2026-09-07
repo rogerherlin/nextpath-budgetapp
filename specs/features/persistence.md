@@ -1,6 +1,6 @@
 # Feature: JSON persistence
 
-Status: Draft
+Status: Done
 
 ## Problem Statement
 

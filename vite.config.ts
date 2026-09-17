@@ -2,7 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dirname } from "node:path";
 import react from "@vitejs/plugin-react";
+import { loadEnv } from "vite";
 import { defineConfig, type Plugin } from "vitest/config";
+import { createSdkCaller, handleSuggestEntries } from "./src/geminiSuggest";
 import { APP_BUDGETS_FILE } from "./src/paths";
 import { loadStore, parseStoreJson, serializeStore } from "./src/store";
 
@@ -31,6 +33,22 @@ function storeApiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const path = req.url?.split("?")[0];
+        if (path === "/api/suggest-entries") {
+          if (req.method !== "POST") {
+            next();
+            return;
+          }
+          void readBody(req).then(async (raw) => {
+            const env = loadEnv(server.config.mode, process.cwd(), "");
+            const result = await handleSuggestEntries(
+              raw,
+              env.GEMINI_API_KEY ?? "",
+              createSdkCaller(),
+            );
+            sendJson(res, result.status, JSON.stringify(result.body));
+          });
+          return;
+        }
         if (path !== "/api/store") {
           next();
           return;

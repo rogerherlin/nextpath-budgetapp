@@ -10,6 +10,8 @@
 | Typecheck | `tsc --noEmit` | AGENTS.md |
 | Run | `npm start` = `vite` | One dev server |
 | Persistence | Node `fs` via a Vite plugin, file `data/budgets.json` | Same origin, no extra process, no picker |
+| From-text LLM | `@google/generative-ai`, model `gemini-3.6-flash` | Official SDK; called only from Vite Node middleware |
+| Secrets | `.env` with `GEMINI_API_KEY` (gitignored; no `VITE_` prefix) | Key must not ship in the client bundle |
 | UI tests later | Vitest + `jsdom` | No browser runner until needed |
 
 No Next.js, no Electron/Tauri, no database, no CSS framework, no form library, no state library. Styling: one `src/styles.css`.
@@ -24,7 +26,8 @@ No Next.js, no Electron/Tauri, no database, no CSS framework, no form library, n
 
 ```
 index.html
-vite.config.ts          # React plugin + /api/store middleware + Vitest
+vite.config.ts          # React plugin + /api/store + /api/suggest-entries + Vitest
+.env.example            # GEMINI_API_KEY= (empty); real key in gitignored .env
 tsconfig.json
 tsconfig.node.json      # vite.config.ts
 package.json
@@ -39,6 +42,8 @@ Domain files from feature specs are added during TDD, not in the empty scaffold.
 ## Persistence adapter (when implemented)
 
 `vite.config.ts` middleware: `GET`/`PUT` `/api/store`. PUT body is the full `StoreFile`. Root path: `join(process.cwd(), "data", "budgets.json")`.
+
+`POST /api/suggest-entries`: JSON `{ text, incomeCategories, expenseCategories }`. Uses `loadEnv` for `GEMINI_API_KEY`. SDK model `gemini-3.6-flash`. Tests mock the SDK.
 
 ## Libraries we will not add for MVP
 

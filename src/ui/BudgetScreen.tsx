@@ -4,6 +4,7 @@ import { formatDate, parseDate } from "../dates";
 import { formatMoney, parseOptionalMoney } from "../money";
 import { CategoriesTab } from "./CategoriesTab";
 import { EntriesTab } from "./EntriesTab";
+import { FromTextTab } from "./FromTextTab";
 import { ReportTab } from "./ReportTab";
 import { useStoreRevision } from "./useStoreRevision";
 
@@ -12,6 +13,7 @@ const TABS = [
   { label: "Income", id: "income" },
   { label: "Expenses", id: "expenses" },
   { label: "Report", id: "report" },
+  { label: "From text", id: "from-text" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -75,20 +77,22 @@ export function BudgetScreen({
 
   return (
     <>
-      <button type="button" onClick={() => onBack?.()}>
-        Back to budgets
-      </button>
-      <form onSubmit={saveHeader}>
-        <p>
+      <p className="form-actions">
+        <button className="button button--secondary" type="button" onClick={() => onBack?.()}>
+          Back to budgets
+        </button>
+      </p>
+      <form className="header-form" onSubmit={saveHeader}>
+        <p className="field">
           <label htmlFor="open-budget-name">Name</label>
           <input
             id="open-budget-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          {nameError ? <span>{nameError}</span> : null}
+          {nameError ? <span className="field-error">{nameError}</span> : null}
         </p>
-        <p>
+        <p className="field">
           <label htmlFor="open-budget-description">Description</label>
           <input
             id="open-budget-description"
@@ -96,42 +100,55 @@ export function BudgetScreen({
             onChange={(event) => setDescription(event.target.value)}
           />
         </p>
-        <p>
-          <label htmlFor="open-budget-start">Start</label>
-          <input
-            id="open-budget-start"
-            placeholder="dd.mm.yyyy"
-            value={start}
-            onChange={(event) => setStart(event.target.value)}
-          />
-          {startError ? <span>{startError}</span> : null}
-        </p>
-        <p>
-          <label htmlFor="open-budget-end">End</label>
-          <input
-            id="open-budget-end"
-            placeholder="dd.mm.yyyy"
-            value={end}
-            onChange={(event) => setEnd(event.target.value)}
-          />
-          {endError ? <span>{endError}</span> : null}
-        </p>
-        <p>
+        <div className="field-row">
+          <p className="field">
+            <label htmlFor="open-budget-start">Start</label>
+            <input
+              id="open-budget-start"
+              placeholder="dd.mm.yyyy"
+              value={start}
+              onChange={(event) => setStart(event.target.value)}
+            />
+            {startError ? <span className="field-error">{startError}</span> : null}
+          </p>
+          <p className="field">
+            <label htmlFor="open-budget-end">End</label>
+            <input
+              id="open-budget-end"
+              placeholder="dd.mm.yyyy"
+              value={end}
+              onChange={(event) => setEnd(event.target.value)}
+            />
+            {endError ? <span className="field-error">{endError}</span> : null}
+          </p>
+        </div>
+        <p className="field">
           <label htmlFor="open-budget-target">Target leftover (EUR)</label>
           <input
             id="open-budget-target"
             value={target}
             onChange={(event) => setTarget(event.target.value)}
           />
-          {targetError ? <span>{targetError}</span> : null}
+          {targetError ? <span className="field-error">{targetError}</span> : null}
         </p>
-        <button type="submit">Save</button>
+        <p className="form-actions">
+          <button className="button button--primary" type="submit">
+            Save
+          </button>
+        </p>
       </form>
-      {TABS.map((item) => (
-        <button key={item.id} type="button" onClick={() => setTab(item.id)}>
-          {item.label}
-        </button>
-      ))}
+      <div className="tabs">
+        {TABS.map((item) => (
+          <button
+            className={tab === item.id ? "tab tab--active" : "tab"}
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       {tab === "categories" ? <CategoriesTab budgetId={budgetId} /> : null}
       {tab === "income" ? (
         <EntriesTab budgetId={budgetId} kind="income" />
@@ -140,6 +157,7 @@ export function BudgetScreen({
         <EntriesTab budgetId={budgetId} kind="expense" />
       ) : null}
       {tab === "report" ? <ReportTab budgetId={budgetId} /> : null}
+      {tab === "from-text" ? <FromTextTab budgetId={budgetId} /> : null}
     </>
   );
 }

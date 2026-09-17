@@ -3,6 +3,8 @@ import type { Entry } from "./types";
 
 type EntryKind = "income" | "expense";
 
+let entrySeq = 0;
+
 export function addEntry(
   budgetId: string,
   kind: EntryKind,
@@ -20,8 +22,9 @@ export function addEntry(
   if (input.categoryId === "" || categoryMissing) {
     return { ok: false, error: "Select a category." };
   }
+  entrySeq += 1;
   const entry: Entry = {
-    id: `e-${Date.now()}`,
+    id: `e-${Date.now()}-${entrySeq}`,
     categoryId: input.categoryId,
     comment: input.comment,
     amountCents: input.amountCents,

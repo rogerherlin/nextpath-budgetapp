@@ -4,6 +4,8 @@ import type { Budget, Category, Entry } from "./types";
 
 type CategoryKind = "income" | "expense";
 
+let categorySeq = 0;
+
 function categoriesOf(budget: Budget, kind: CategoryKind): Category[] {
   return kind === "income" ? budget.incomeCategories : budget.expenseCategories;
 }
@@ -21,7 +23,8 @@ export function addCategory(
   if (budget && isNameTaken(name, categoriesOf(budget, kind).map((item) => item.name))) {
     return { ok: false, error: "The name is already in use." };
   }
-  const category = { id: `c-${Date.now()}`, name };
+  categorySeq += 1;
+  const category = { id: `c-${Date.now()}-${categorySeq}`, name };
   mapBudget(budgetId, (current) =>
     kind === "income"
       ? {

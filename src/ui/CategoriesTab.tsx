@@ -62,9 +62,9 @@ function CategoryList({
 
   return (
     <>
-      <ul>
+      <ul className="plain-list">
         {categories.map((category) => (
-          <li key={category.id}>
+          <li className="category-row" key={category.id}>
             {editingId === category.id ? (
               <form onSubmit={onSaveEdit}>
                 <input
@@ -72,55 +72,73 @@ function CategoryList({
                   onChange={(event) => setEditName(event.target.value)}
                   aria-label={`Edit ${kind} category`}
                 />
-                {editError ? <span>{editError}</span> : null}
-                <button type="submit">Save</button>
-                <button type="button" onClick={() => setEditingId(null)}>
-                  Cancel
-                </button>
+                {editError ? <span className="field-error">{editError}</span> : null}
+                <p className="form-actions">
+                  <button className="button button--primary" type="submit">
+                    Save
+                  </button>
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                  >
+                    Cancel
+                  </button>
+                </p>
               </form>
             ) : (
               <>
-                <span>{category.name}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingId(category.id);
-                    setEditName(category.name);
-                    setEditError("");
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        deleteCategoryConfirmMessage(
-                          category.name,
-                          categoryEntryCount(budget, category.id),
-                        ),
-                      )
-                    ) {
-                      deleteCategory(budget.id, category.id);
-                    }
-                  }}
-                >
-                  Delete
-                </button>
+                <span className="category-row__name">{category.name}</span>
+                <span className="category-row__actions">
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    onClick={() => {
+                      setEditingId(category.id);
+                      setEditName(category.name);
+                      setEditError("");
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="button button--danger"
+                    type="button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          deleteCategoryConfirmMessage(
+                            category.name,
+                            categoryEntryCount(budget, category.id),
+                          ),
+                        )
+                      ) {
+                        deleteCategory(budget.id, category.id);
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                </span>
               </>
             )}
           </li>
         ))}
       </ul>
       <form onSubmit={onAdd}>
-        <input
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-          aria-label={`Add ${kind} category`}
-        />
-        {addError ? <span>{addError}</span> : null}
-        <button type="submit">Add</button>
+        <p className="field">
+          <input
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            aria-label={`Add ${kind} category`}
+          />
+          {addError ? <span className="field-error">{addError}</span> : null}
+        </p>
+        <p className="form-actions">
+          <button className="button button--primary" type="submit">
+            Add
+          </button>
+        </p>
       </form>
     </>
   );

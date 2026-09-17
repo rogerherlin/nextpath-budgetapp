@@ -35,7 +35,7 @@ function EntryFormFields({
 }) {
   return (
     <>
-      <p>
+      <p className="field">
         <label htmlFor={`${prefix}-category`}>Category</label>
         <select
           id={`${prefix}-category`}
@@ -49,9 +49,11 @@ function EntryFormFields({
             </option>
           ))}
         </select>
-        {errors.category ? <span>{errors.category}</span> : null}
+        {errors.category ? (
+          <span className="field-error">{errors.category}</span>
+        ) : null}
       </p>
-      <p>
+      <p className="field">
         <label htmlFor={`${prefix}-comment`}>Comment</label>
         <input
           id={`${prefix}-comment`}
@@ -59,17 +61,19 @@ function EntryFormFields({
           onChange={(event) => onComment(event.target.value)}
         />
       </p>
-      <p>
+      <p className="field">
         <label htmlFor={`${prefix}-amount`}>Amount</label>
-        <input
-          id={`${prefix}-amount`}
-          value={amount}
-          onChange={(event) => onAmount(event.target.value)}
-        />
-        <span>EUR</span>
-        {errors.amount ? <span>{errors.amount}</span> : null}
+        <span className="amount-input">
+          <input
+            id={`${prefix}-amount`}
+            value={amount}
+            onChange={(event) => onAmount(event.target.value)}
+          />
+          <span className="currency">EUR</span>
+        </span>
+        {errors.amount ? <span className="field-error">{errors.amount}</span> : null}
       </p>
-      <p>
+      <p className="field">
         <label htmlFor={`${prefix}-date`}>Date</label>
         <input
           id={`${prefix}-date`}
@@ -77,7 +81,7 @@ function EntryFormFields({
           value={date}
           onChange={(event) => onDate(event.target.value)}
         />
-        {errors.date ? <span>{errors.date}</span> : null}
+        {errors.date ? <span className="field-error">{errors.date}</span> : null}
       </p>
     </>
   );
@@ -206,7 +210,7 @@ export function EntriesTab({
 
   return (
     <>
-      <form onSubmit={onAdd}>
+      <form className="entry-form" onSubmit={onAdd}>
         <EntryFormFields
           prefix={`${kind}-add`}
           categoryId={categoryId}
@@ -224,7 +228,11 @@ export function EntriesTab({
           onAmount={setAmount}
           onDate={setDate}
         />
-        <button type="submit">Add</button>
+        <p className="form-actions">
+          <button className="button button--primary" type="submit">
+            Add
+          </button>
+        </p>
       </form>
       <table>
         <thead>
@@ -259,20 +267,29 @@ export function EntriesTab({
                       onAmount={setEditAmount}
                       onDate={setEditDate}
                     />
-                    <button type="submit">Save</button>
-                    <button type="button" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
+                    <p className="form-actions">
+                      <button className="button button--primary" type="submit">
+                        Save
+                      </button>
+                      <button
+                        className="button button--secondary"
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </p>
                   </form>
                 </td>
               ) : (
                 <>
                   <td>{categoryName(entry.categoryId)}</td>
                   <td>{entry.comment}</td>
-                  <td>{formatMoney(entry.amountCents)}</td>
+                  <td className="money">{formatMoney(entry.amountCents)}</td>
                   <td>{entry.date ? formatDate(entry.date) : ""}</td>
                   <td>
                     <button
+                      className="button button--secondary"
                       type="button"
                       onClick={() => {
                         setEditingId(entry.id);
@@ -288,6 +305,7 @@ export function EntriesTab({
                       Edit
                     </button>
                     <button
+                      className="button button--danger"
                       type="button"
                       onClick={() => deleteEntry(budgetId, entry.id)}
                     >

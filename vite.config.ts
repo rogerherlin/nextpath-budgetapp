@@ -1,10 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { dirname } from "node:path";
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
 import { defineConfig, type Plugin } from "vitest/config";
-import { createSdkCaller, handleSuggestEntries } from "./src/geminiSuggest";
+import { dispatchHttpRequest } from "./src/httpDispatch";
 import { APP_BUDGETS_FILE } from "./src/paths";
 import { loadStore, parseStoreJson, serializeStore } from "./src/store";
 
@@ -21,61 +19,40 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function sendJson(res: ServerResponse, status: number, body: string): void {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.end(body);
-}
-
 function storeApiPlugin(): Plugin {
   return {
     name: "budget-store-api",
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = req.url?.split("?")[0];
-        if (path === "/api/suggest-entries") {
-          if (req.method !== "POST") {
-            next();
-            return;
-          }
-          void readBody(req).then(async (raw) => {
-            const env = loadEnv(server.config.mode, process.cwd(), "");
-            const result = await handleSuggestEntries(
-              raw,
-              env.GEMINI_API_KEY ?? "",
-              createSdkCaller(),
-            );
-            sendJson(res, result.status, JSON.stringify(result.body));
-          });
-          return;
-        }
-        if (path !== "/api/store") {
+        const pathname = req.url?.split("?")[0] ?? "";
+        if (
+          pathname !== "/api/store" &&
+          pathname !== "/api/suggest-entries"
+        ) {
           next();
           return;
         }
-        if (req.method === "GET") {
-          const result = loadStore();
-          if (!result.ok) {
-            sendJson(res, 500, JSON.stringify({ error: result.error }));
-            return;
-          }
-          sendJson(res, 200, serializeStore(result.value));
-          return;
-        }
-        if (req.method === "PUT") {
-          void readBody(req).then((raw) => {
-            const parsed = parseStoreJson(raw);
-            if (!parsed.ok) {
-              sendJson(res, 400, JSON.stringify({ error: "Invalid store." }));
-              return;
-            }
-            mkdirSync(dirname(APP_BUDGETS_FILE), { recursive: true });
-            writeFileSync(APP_BUDGETS_FILE, serializeStore(parsed.value));
-            sendJson(res, 200, serializeStore(parsed.value));
+        void (async () => {
+          const env = loadEnv(server.config.mode, process.cwd(), "");
+          const body = await readBody(req as IncomingMessage);
+          const result = await dispatchHttpRequest({
+            method: req.method ?? "GET",
+            pathname,
+            body,
+            geminiApiKey: env.GEMINI_API_KEY ?? "",
+            distDir: "",
+            storePath: APP_BUDGETS_FILE,
+            loadStoreAt: loadStore,
+            parseStoreJson,
+            serializeStore,
           });
-          return;
-        }
-        next();
+          const outgoing = res as ServerResponse;
+          outgoing.statusCode = result.status;
+          for (const [name, value] of Object.entries(result.headers)) {
+            outgoing.setHeader(name, value);
+          }
+          outgoing.end(result.body);
+        })();
       });
     },
   };

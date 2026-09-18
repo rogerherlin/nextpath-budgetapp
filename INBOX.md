@@ -6,3 +6,4 @@
 - `parseStoreJson` accepts any array as `budgets` (no per-budget field checks).
 - Browser persist PUT is fire-and-forget; a failed save is not shown to the user.
 - `updateBudget` rejects an empty name, but lifecycle.md has no named AC or test for that.
+- AGENTS.md Commands still list only `npm start` / test / tsc; `build` and `serve` exist now.

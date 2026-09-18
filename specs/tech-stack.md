@@ -8,8 +8,8 @@
 | UI | React 19 + Vite 5 | Fast refresh, one HTML page, enough for two screens; Vite 5 runs on Node 18 |
 | Tests | Vitest 2 | `npm test` = `vitest run` |
 | Typecheck | `tsc --noEmit` | AGENTS.md |
-| Run | `npm start` = `vite` | One dev server |
-| Persistence | Node `fs` via a Vite plugin, file `data/budgets.json` | Same origin, no extra process, no picker |
+| Run | `npm start` = `vite` (dev UI + API). `npm run build` then `npm run serve` = Node `http` on port 8080 | Dev vs local production process |
+| Persistence | Node `fs`, file `data/budgets.json` | Same origin, no extra process, no picker |
 | From-text LLM | `@google/generative-ai`, model `gemini-3.6-flash` | Official SDK; called only from Vite Node middleware |
 | Secrets | `.env` with `GEMINI_API_KEY` (gitignored; no `VITE_` prefix) | Key must not ship in the client bundle |
 | UI tests later | Vitest + `jsdom` | No browser runner until needed |
@@ -21,12 +21,16 @@ No Next.js, no Electron/Tauri, no database, no CSS framework, no form library, n
 - `npm test` — Vitest, `passWithNoTests: true` until the first spec test exists.
 - `npx tsc --noEmit` — project references none; include `src` and Vite env types.
 - `npm start` — Vite on default port 5173.
+- `npm run build` — Vite writes `dist/`.
+- `npm run serve` — Node `src/server.ts` (tsx) on `PORT` or 8080; needs `dist/`.
 
 ## Layout on disk
 
 ```
 index.html
-vite.config.ts          # React plugin + /api/store + /api/suggest-entries + Vitest
+vite.config.ts          # React plugin + /api via dispatchHttpRequest + Vitest
+src/server.ts           # Node http server for npm run serve
+src/httpDispatch.ts     # Shared GET/PUT store, POST suggest, static dist/
 .env.example            # GEMINI_API_KEY= (empty); real key in gitignored .env
 tsconfig.json
 tsconfig.node.json      # vite.config.ts

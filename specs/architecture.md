@@ -20,7 +20,7 @@ Two screens only: **Home** (list) and **Budget** (header + five tabs). No client
 
 1. **Domain** — Types (`Budget`, `Category`, `Entry`, `DateParts`, `StoreFile`) and pure functions. No `window`, no `fs`. Return `{ ok: true, value } | { ok: false, error: string }` with the spec’s exact `error` strings. Mutators take the in-memory store and return a new store (or mutate a single working copy in tests — either is fine if tests stay deterministic). Ids: opaque strings (`crypto.randomUUID()` at the UI/store edge, injectable in tests).
 2. **Store** — `loadStore` / `saveStore` read and write the entire `{ version: 1, budgets: [] }` document. Every successful domain mutation is followed by save. Path is fixed: `data/budgets.json` under the app working directory (the “app data folder” for this MVP).
-3. **HTTP adapter** — Vite middleware: `GET /api/store` and `PUT /api/store` with the JSON body. `POST /api/suggest-entries` reads `GEMINI_API_KEY` from `.env` (Node `loadEnv`), calls Gemini, returns `{ items }` or `{ error }`. The UI never touches the filesystem and never sees the key.
+3. **HTTP adapter** — Shared `dispatchHttpRequest`: `GET`/`PUT` `/api/store` and `POST` `/api/suggest-entries`. Wired in Vite middleware (`npm start`) and in `src/server.ts` (`npm run build` then `npm run serve`). Gemini key is read from the environment / `.env` on Node only. The UI never touches the filesystem and never sees the key.
 4. **UI** — Calls domain functions, then PUT. From-text `Apply` calls `applySuggestedItems` (add category/entry only), then persist. Confirmations are `window.confirm` with the spec’s exact messages.
 
 ## Data isolation
@@ -29,7 +29,7 @@ Each `Budget` owns its arrays. Copy deep-clones and remaps ids. Functions that a
 
 ## Non-goals (out of this architecture)
 
-Auth, sync, file pickers, per-budget files, background jobs, caches, Redux, a separate production API server, charts, PDF.
+Auth, sync, file pickers, per-budget files, background jobs, caches, Redux, charts, PDF.
 
 ## Failure
 

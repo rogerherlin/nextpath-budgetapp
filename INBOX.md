@@ -1,4 +1,4 @@
-- AGENTS.md “What this is” omits budgets’ time span and description, which prompts.md now includes.
+- ui-ux.md, from-text.md, and node-http-server.md still describe no-login Home and GET/PUT `/api/store` after PRD/architecture moved to Auth + Firestore.
 - Vitest 2 / tinypool can dump RangeError: Maximum call stack size exceeded after a failed test in this environment.
 - Categories tab Add/Edit is in ui-ux.md and Files to Modify, but categories.md has no ACs for those UI actions (stops at AC14).
 - prompts.md TDD item 6 points at specs/features/persitence.md; the spec file is persistence.md.

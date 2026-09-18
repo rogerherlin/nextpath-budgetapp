@@ -7,8 +7,15 @@
 
 ## What this is
 
-«One paragraph: what this app does, for whom, and what "working" means.»
-Build a budgeting app for tracking income and expence. Each budget can be given a time span, name (unique and mandatory), a description and a target balance. Each budget can be stored separately and opened for editing later. Any budget can also be deleted by anyone. You start by selecting an existing budget or create a new one. On each budget you can add, edit and delete income and expence categories on its own tab in the ui. On each user entry row you select category and give a comment and the amount of money. Income and expences are on different tabs in the ui. We will also need a report tab where we summarize each category and calculate a final buget balance. No user-accounts, as this works locally at home on one shared device. Anyone can edit any stored budget and add new ones.You can make a copy of an existing budget. Budgets do not share any data between them. Each budget is a separate data set. Use comma as decimal separator, use a blank space for thousands separator, use dateformat dd.mm.yyyy.
+BudgetApp tracks household income and expenses in named, isolated budgets. Users sign in with Firebase Auth (email/password). At most **10** user profiles exist; one of those is the **moderator** (`MODERATOR_EMAIL`). After login, Home lists **your** budgets, budgets **shared with you**, and **public** summaries. New budgets are **hidden** (owner + moderator only) until the owner lists them as public or grants another user **see**, **browse**, or **edit**. Only the owner or moderator may delete a budget. Copy creates a **new owned** budget for the copier. Names are unique **per owner**, not globally. Each budget has an optional date range, description, and target leftover; categories; income/expense rows; a report (actual leftover = income − expenses vs that target); and a From-text tab that is allowed only when the profile has `canUseFromText` or the user is the moderator. Persistence is **Firestore via the Cloud Run / Node API** (Admin SDK); the browser never writes Firestore and never holds `GEMINI_API_KEY`. Decimal comma, space thousands separator, dates `dd.mm.yyyy`. Working means: register or sign in, create or open a budget you are allowed to use, enter data, sign out, and see the same data next time under the same ACL.
+
+## Product rules (do not regress)
+
+- **No unauthenticated `/api/store` dump.** Per-budget APIs + Bearer ID token. Client Firestore SDK is not used for data.
+- Authorization is enforced on the **server** with pure helpers (`canListSummary`, `canRead`, `canWrite`, `canDelete`, `canUseFromText`). UI hiding is not security.
+- **edit** may change categories and rows; it may **not** delete the budget, change visibility, change grants, or transfer ownership.
+- **see** lists the budget to that user but they cannot open it. **browse** is read-only (full budget + report).
+- Gemini and Firestore stay on Node. Secrets: local `.env` / Cloud Run Secret Manager. Never bake `.env` or service-account JSON into Docker.
 
 ## Commands
 
@@ -79,8 +86,8 @@ branched on.
 - TypeScript strict, no `any`
 - ES modules
 - Business logic in pure functions, testable without the CLI/UI
-- «your rule — e.g. "interfaces for every data structure"»
-- «your rule»
+- Interfaces for every data structure (`UserProfile`, `Budget`, grants, store/repo)
+- Domain mutators stay pure; the HTTP layer refuses calls that fail ACL checks
 
 ## Guardrails
 
@@ -88,7 +95,7 @@ branched on.
 - Never "fix" a failing test by editing the test — the spec decides
   which one is wrong, and the spec is corrected first
 - Stop after two consecutive red rounds and report — do not thrash
-- «your line — what must never happen in THIS project»
+- Never send the Gemini key or Firebase Admin credentials to the browser; never restore a whole-store unauthenticated PUT; never grant the client Firestore write access
 
 ## When you notice something
 

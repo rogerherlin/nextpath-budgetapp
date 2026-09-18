@@ -12,29 +12,19 @@ Add `src/httpDispatch.ts` (pure request routing, testable without listen) and `s
 
 ## Acceptance Criteria
 
-### AC1: GET /api/store
-**Given** `loadStore` would return `{ ok: true, value: { version: 1, budgets: [] } }`
+### AC1: GET /api/store removed
+**Given** any repository
 **When** `dispatchHttpRequest` is called with `method` `"GET"` and `pathname` `"/api/store"`
-**Then** the result `status` is `200`, `Content-Type` is `application/json`, and `body` is exactly `{"version":1,"budgets":[]}`
+**Then** the result `status` is `404` and `body` is exactly `{"error":"Not found."}`
 
-### AC2: GET /api/store load failure
-**Given** `loadStore` would return `{ ok: false, error: "Could not read budgets.json." }`
-**When** `dispatchHttpRequest` is called with `method` `"GET"` and `pathname` `"/api/store"`
-**Then** the result `status` is `500` and `body` is exactly `{"error":"Could not read budgets.json."}`
-
-### AC3: PUT /api/store valid
-**Given** a writable store path
-**When** `dispatchHttpRequest` is called with `method` `"PUT"`, `pathname` `"/api/store"`, and `body` `{"version":1,"budgets":[]}`
-**Then** the result `status` is `200` and `body` is exactly `{"version":1,"budgets":[]}` and the store file contains that JSON
-
-### AC4: PUT /api/store invalid
-**Given** any store path
-**When** `dispatchHttpRequest` is called with `method` `"PUT"`, `pathname` `"/api/store"`, and `body` `{}`
-**Then** the result `status` is `400` and `body` is exactly `{"error":"Invalid store."}` and the store file is not written
+### AC2: PUT /api/store removed
+**Given** any repository
+**When** `dispatchHttpRequest` is called with `method` `"PUT"` and `pathname` `"/api/store"`
+**Then** the result `status` is `404` and `body` is exactly `{"error":"Not found."}`
 
 ### AC5: POST /api/suggest-entries missing key
-**Given** `geminiApiKey` `""`
-**When** `dispatchHttpRequest` is called with `method` `"POST"`, `pathname` `"/api/suggest-entries"`, and a valid suggest JSON body
+**Given** a signed-in user who may use From-text and write the budget, and `geminiApiKey` `""`
+**When** `dispatchHttpRequest` is called with `method` `"POST"`, `pathname` `"/api/suggest-entries"`, and a valid suggest JSON body including `budgetId`
 **Then** the result `status` is `503` and `body` is exactly `{"error":"Gemini API key is missing."}`
 
 ### AC6: Serve index.html for GET /

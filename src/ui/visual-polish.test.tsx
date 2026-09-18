@@ -11,6 +11,9 @@ function emptyBudget(id: string): Budget {
   return {
     id,
     name: "Summer",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,
@@ -26,6 +29,9 @@ function reportFixture(targetLeftoverCents: number | null): Budget {
   return {
     id: "b1",
     name: "Summer",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,

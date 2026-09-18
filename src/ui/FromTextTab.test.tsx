@@ -10,6 +10,9 @@ function budgetFixture(): Budget {
   return {
     id: "b1",
     name: "Summer 2026",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,
@@ -99,6 +102,7 @@ describe("AC4: Suggest request body", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          budgetId: "b1",
           text: "paid rent 600 euros",
           incomeCategories: [{ id: "c1", name: "Salary" }],
           expenseCategories: [{ id: "c2", name: "Rent" }],

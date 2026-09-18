@@ -19,3 +19,7 @@ export function readFirebaseWebConfig(): {
     projectId: process.env.FIREBASE_WEB_PROJECT_ID ?? "",
   };
 }
+
+export function persistAdapterName(): "firestore" | "memory" {
+  return process.env.BUDGETAPP_MEMORY_REPO === "1" ? "memory" : "firestore";
+}

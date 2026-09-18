@@ -7,6 +7,9 @@ function emptyBudget(id: string): Budget {
   return {
     id,
     name: "Summer",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,

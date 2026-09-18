@@ -90,9 +90,11 @@ function EntryFormFields({
 export function EntriesTab({
   budgetId,
   kind,
+  readOnly = false,
 }: {
   budgetId: string;
   kind: EntryKind;
+  readOnly?: boolean;
 }) {
   useStoreRevision();
   const budget = listBudgets().find((item) => item.id === budgetId);
@@ -210,6 +212,7 @@ export function EntriesTab({
 
   return (
     <>
+      {readOnly ? null : (
       <form className="entry-form" onSubmit={onAdd}>
         <EntryFormFields
           prefix={`${kind}-add`}
@@ -234,6 +237,7 @@ export function EntriesTab({
           </button>
         </p>
       </form>
+      )}
       <table>
         <thead>
           <tr>
@@ -288,6 +292,8 @@ export function EntriesTab({
                   <td className="money">{formatMoney(entry.amountCents)}</td>
                   <td>{entry.date ? formatDate(entry.date) : ""}</td>
                   <td>
+                    {readOnly ? null : (
+                      <>
                     <button
                       className="button button--secondary"
                       type="button"
@@ -311,6 +317,8 @@ export function EntriesTab({
                     >
                       Delete
                     </button>
+                      </>
+                    )}
                   </td>
                 </>
               )}

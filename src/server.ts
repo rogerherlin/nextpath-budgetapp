@@ -1,12 +1,23 @@
 import { createServer, type IncomingMessage } from "node:http";
 import { applyEnvFile } from "./envFile";
 import {
+  createAppRepo,
+  deleteAuthUser,
+  verifyIdToken,
+} from "./firebaseAdmin";
+import {
   defaultDistDir,
   dispatchHttpRequest,
   listenPort,
 } from "./httpDispatch";
+import { isModeratorEmail } from "./acl";
+import { migrateJsonIfNeeded } from "./migrate";
 import { APP_BUDGETS_FILE } from "./paths";
-import { loadStore, parseStoreJson, serializeStore } from "./store";
+import {
+  readFirebaseWebConfig,
+  readGeminiApiKey,
+  readModeratorEmail,
+} from "./secrets";
 
 applyEnvFile();
 
@@ -25,6 +36,19 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 const distDir = defaultDistDir();
 const port = listenPort();
+const repo = createAppRepo();
+const web = readFirebaseWebConfig();
+const moderatorEmail = readModeratorEmail();
+
+void (async () => {
+  const profiles = await repo.listProfiles();
+  const moderator = profiles.find((profile) =>
+    isModeratorEmail(profile.email, moderatorEmail),
+  );
+  if (moderator !== undefined) {
+    await migrateJsonIfNeeded(repo, APP_BUDGETS_FILE, moderator.id);
+  }
+})();
 
 const server = createServer((req, res) => {
   const pathname = (req.url ?? "/").split("?")[0] ?? "/";
@@ -34,12 +58,16 @@ const server = createServer((req, res) => {
       method: req.method ?? "GET",
       pathname,
       body,
-      geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+      authorization: req.headers.authorization,
+      geminiApiKey: readGeminiApiKey(),
       distDir,
-      storePath: APP_BUDGETS_FILE,
-      loadStoreAt: loadStore,
-      parseStoreJson,
-      serializeStore,
+      repo,
+      moderatorEmail,
+      firebaseWebApiKey: web.apiKey,
+      firebaseWebAuthDomain: web.authDomain,
+      firebaseWebProjectId: web.projectId,
+      verifyIdToken,
+      deleteUser: deleteAuthUser,
     });
     res.writeHead(result.status, result.headers);
     res.end(result.body);

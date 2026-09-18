@@ -17,6 +17,8 @@ Browser UI (Auth SDK)  →  Authorization: Bearer <ID token>
                               → Firestore Admin SDK (users, budgets)
                               → Gemini gemini-3.6-flash (if canUseFromText)
                             Secrets: .env locally; Secret Manager on Cloud Run
+                            Container: Dockerfile → Artifact Registry → Cloud Run
+                            (see specs/runbooks/cloud-run.md)
 ```
 
 Screens: **Login** (register / sign-in / sign-out), **Home** (filtered list), **Budget** (header + tabs; read-only when browse). No client router library: screen state in React (`unauthenticated` | home | `currentBudgetId`).
@@ -34,7 +36,7 @@ Each `Budget` owns its arrays. Copy deep-clones, remaps ids, sets `ownerId` to t
 
 ## Current code vs this architecture
 
-Until the auth/persistence slices land, the running app still uses `GET`/`PUT` `/api/store` and `data/budgets.json`. That path **cannot coexist** with per-user ACL (a logged-in client could overwrite everyone else’s data). Specs and later TDD replace it; do not add accounts on top of whole-store PUT.
+The HTTP adapter uses per-budget routes and a repository (Firestore Admin or an in-memory fake in tests). `GET`/`PUT` `/api/store` return `404`. `data/budgets.json` is one-shot migration only.
 
 ## Non-goals (out of this architecture)
 

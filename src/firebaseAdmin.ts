@@ -3,12 +3,9 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { FirestoreRepo } from "./firestoreRepo";
 import { MemoryRepo, type AppRepo } from "./repo";
+import { persistAdapterName } from "./secrets";
 
 export type VerifiedToken = { uid: string; email?: string };
-
-export function persistAdapterName(): "firestore" | "memory" {
-  return process.env.BUDGETAPP_MEMORY_REPO === "1" ? "memory" : "firestore";
-}
 
 export function firebaseProjectId(): string {
   return (
@@ -26,8 +23,8 @@ export function initFirebaseAdmin(): void {
   }
   const projectId = firebaseProjectId();
   if (
-    process.env.FIRESTORE_EMULATOR_HOST !== undefined ||
-    process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined
+    process.env.FIRESTORE_EMULATOR_HOST !== undefined &&
+    process.env.FIRESTORE_EMULATOR_HOST !== ""
   ) {
     initializeApp({ projectId });
     return;

@@ -20,18 +20,26 @@ A clear desktop UI for one shared home computer. English. Native controls. Paper
 
 Left-aligned card, comfortable spacing. Keyboard: tab through fields; primary actions are real `<button>`s.
 
+**Login**
+
+- Heading `Sign in`. Fields labelled `Email`, `Password`, and `Display name`. Buttons `Sign in` and `Register`.
+- Sign-in failure: `.field-error` with `Could not sign in.`
+- Register posts `{ "displayName" }` with a Bearer token. Household-full error shows `.field-error` with `The household is full (10 users).`
+
 **Home**
 
-- Title `Budgets`.
+- Title `Budgets`. Button `Sign out` returns to the login heading.
 - If there are no budgets: text `No budgets yet.` and button `New budget`.
-- If there are budgets: a list. Each row is a `listitem` with class `budget-row`; shows the name; buttons `Open`, `Copy`, `Delete`.
+- If there are budgets: a list. Each row is a `listitem` with class `budget-row`; shows the name; badge `Yours` / `Public` / `Shared`; buttons `Open`, `Copy`, `Delete` only when the viewer relation allows (see-only and public-summary: no Open/Copy/Delete; browse/edit: Open and Copy, no Delete).
+- Moderator: heading `Household` with emails and a `From text` checkbox per user. At 10 profiles: `Sign-up is full (10 users).`
 - `New budget` opens a short form on the same page: `Name` (required), `Description`, `Start`, `End`, `Target leftover (EUR)`. Buttons `Save` and `Cancel`. Labels stack above inputs.
 - Delete uses `window.confirm` with exactly: `Delete budget “{name}”? This cannot be undone.` OK runs delete; Cancel does nothing.
 
 **Budget**
 
-- Top: name (editable), description, start, end, `Target leftover (EUR)`. Button `Back to budgets`.
-- Tabs, in order, labelled exactly: `Categories` | `Income` | `Expenses` | `Report` | `From text`. Selected tab has `tab--active`.
+- Top: name (editable), description, start, end, `Target leftover (EUR)`. Button `Back to budgets`. Browse is read-only (no Save / Add / Edit / Delete).
+- Owner or moderator: control labelled `Visibility` (`Hidden` / `Public`) and heading `Sharing` with per-user roles `None`, `See`, `Browse`, `Edit`. Hidden for `edit` grant.
+- Tabs, in order, labelled exactly: `Categories` | `Income` | `Expenses` | `Report` | `From text`. Omit `From text` unless the profile may use it (or moderator) and can write. Selected tab has `tab--active`.
 - **Categories:** two columns headed `Income` and `Expense`. Each row: name, `Edit`, `Delete`. Add field + `Add` per list. Unused delete confirm: `Delete category “{name}”?` Used: `Delete category “{name}”? {n} entries will be deleted.`
 - **Income / Expenses:** table columns Category, Comment, Amount (`EUR` beside amount controls), Date, actions. Add row as a distinct form (`entry-form`), button `Add`. Category `<select>` only that tab’s list. Date placeholder `dd.mm.yyyy`. Amount cells use class `money`.
 - **Report:** read-only. Income totals in the first `.report-block`, expense totals in the second (name + `formatMoney`). Then `.report-summary` with `Actual balance` + formatted actual. If target is set, `Target leftover` + formatted target next to it. If target is unset, do not show `Target leftover`. No charts, no line items.

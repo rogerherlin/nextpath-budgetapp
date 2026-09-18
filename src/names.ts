@@ -2,6 +2,15 @@ export function normalizeName(name: string): string {
   return name.trim();
 }
 
+export function namesForOwner(
+  budgets: readonly { ownerId: string; name: string }[],
+  ownerId: string,
+): string[] {
+  return budgets
+    .filter((budget) => budget.ownerId === ownerId)
+    .map((budget) => budget.name);
+}
+
 export function isNameTaken(name: string, existingNames: string[]): boolean {
   const needle = name.toLowerCase();
   return existingNames.some((existing) => existing.toLowerCase() === needle);

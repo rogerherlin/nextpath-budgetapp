@@ -520,41 +520,6 @@ async function dispatchApi(
     }
     return jsonResult(200, JSON.stringify(result.budget));
   }
-    const data = asRecord(parseJsonBody(input.body));
-    if (data === null) {
-      return errorResult(400, "Not found.");
-    }
-    const next: Budget = {
-      ...existing.value,
-      name: typeof data.name === "string" ? data.name : existing.value.name,
-      description:
-        typeof data.description === "string"
-          ? data.description
-          : existing.value.description,
-      incomeCategories: Array.isArray(data.incomeCategories)
-        ? (data.incomeCategories as Category[])
-        : existing.value.incomeCategories,
-      expenseCategories: Array.isArray(data.expenseCategories)
-        ? (data.expenseCategories as Category[])
-        : existing.value.expenseCategories,
-      incomeEntries: Array.isArray(data.incomeEntries)
-        ? (data.incomeEntries as Entry[])
-        : existing.value.incomeEntries,
-      expenseEntries: Array.isArray(data.expenseEntries)
-        ? (data.expenseEntries as Entry[])
-        : existing.value.expenseEntries,
-    };
-    const result = await saveWritableBudget(
-      repo,
-      actor,
-      existing.value.id,
-      next,
-    );
-    if (!result.ok) {
-      return errorResult(result.status, result.error);
-    }
-    return jsonResult(200, JSON.stringify(result.budget));
-  }
 
   if (budgetOne !== null && input.method === "DELETE") {
     const result = await deleteBudgetForActor(repo, actor, budgetOne[1] ?? "");

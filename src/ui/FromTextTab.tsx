@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { getAuthToken } from "../authToken";
 import { listBudgets } from "../budgets";
 import {
   applySuggestedItems,
@@ -29,10 +30,18 @@ export function FromTextTab({ budgetId }: { budgetId: string }) {
     }
     setTextError("");
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const token = await getAuthToken();
+      if (token !== null && token !== "") {
+        headers.Authorization = `Bearer ${token}`;
+      }
       const response = await fetch("/api/suggest-entries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
+          budgetId: openBudget.id,
           text,
           incomeCategories: openBudget.incomeCategories.map((item) => ({
             id: item.id,

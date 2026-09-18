@@ -29,6 +29,7 @@ No Next.js, no Electron/Tauri, no Express, no CSS framework, no form library, no
 - `npm run build` — Vite writes `dist/`.
 - `npm run serve` — Node `src/server.ts` (tsx) on `PORT` or 8080; needs `dist/`.
 - `firebase emulators:start` — Auth + Firestore for local/dev (when wired).
+- `docker build --platform=linux/amd64 -t budgetapp:local .` — production image; see [runbooks/cloud-run.md](runbooks/cloud-run.md).
 
 ## Layout on disk (target additions)
 
@@ -37,6 +38,10 @@ index.html
 vite.config.ts          # React plugin + /api via dispatchHttpRequest + Vitest
 src/server.ts           # Node http server for npm run serve / Cloud Run
 src/httpDispatch.ts     # Auth-gated API + static dist/; no unauthenticated /api/store
+Dockerfile              # Multi-stage: vite build then npm run serve
+.dockerignore           # .env, data/budgets.json, credentials, node_modules, .git
+cloudbuild.yaml         # linux/amd64 image → Artifact Registry
+specs/runbooks/cloud-run.md
 .env.example            # GEMINI_API_KEY, MODERATOR_EMAIL, public Firebase web config placeholders
 tsconfig.json
 package.json
@@ -44,7 +49,7 @@ src/main.tsx
 src/App.tsx
 ```
 
-Dockerfile, `.dockerignore` (exclude `.env`, `data/budgets.json`, credentials), and a Cloud Run runbook land in a later slice. Prefer `GET /api/config` for public `apiKey` / `authDomain` / `projectId` so one image works across emulator and prod.
+`Dockerfile` + `.dockerignore` (exclude `.env`, `data/budgets.json`, credentials) + `cloudbuild.yaml`. Operator steps: [specs/runbooks/cloud-run.md](runbooks/cloud-run.md). Prefer `GET /api/config` for public `apiKey` / `authDomain` / `projectId` so one image works across emulator and prod.
 
 ## HTTP (target)
 

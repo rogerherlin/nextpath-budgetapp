@@ -7,19 +7,71 @@ import {
 } from "../budgets";
 import { parseDate } from "../dates";
 import { parseOptionalMoney } from "../money";
+import type {
+  Actor,
+  BudgetSummary,
+  MeProfile,
+  UserProfile,
+  ViewerRelation,
+} from "../types";
 import { useStoreRevision } from "./useStoreRevision";
 
 export function deleteBudgetConfirmMessage(name: string): string {
   return `Delete budget “${name}”? This cannot be undone.`;
 }
 
+function badgeLabel(relation: ViewerRelation): string {
+  if (relation === "owner" || relation === "moderator") {
+    return "Yours";
+  }
+  if (relation === "public") {
+    return "Public";
+  }
+  return "Shared";
+}
+
+function canOpen(relation: ViewerRelation): boolean {
+  return (
+    relation === "owner" ||
+    relation === "moderator" ||
+    relation === "edit" ||
+    relation === "browse"
+  );
+}
+
+function canCopy(relation: ViewerRelation): boolean {
+  return canOpen(relation);
+}
+
+function canDelete(relation: ViewerRelation): boolean {
+  return relation === "owner" || relation === "moderator";
+}
+
 export function HomeScreen({
   onOpen,
+  actor,
+  summaries,
+  household,
+  onToggleFromText,
 }: {
   onOpen?: (budgetId: string) => void;
+  actor?: Actor;
+  summaries?: BudgetSummary[];
+  household?: UserProfile[];
+  onToggleFromText?: (userId: string, canUseFromText: boolean) => void;
 }) {
   useStoreRevision();
-  const budgets = listBudgets();
+  const listed: Array<{
+    id: string;
+    name: string;
+    viewerRelation: ViewerRelation;
+  }> =
+    summaries ??
+    listBudgets().map((budget) => ({
+      id: budget.id,
+      name: budget.name,
+      viewerRelation: "owner",
+    }));
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -55,13 +107,14 @@ export function HomeScreen({
     if (!startParsed.ok || !endParsed.ok || !targetParsed.ok) {
       return;
     }
-    const result = createBudget({
+    const input = {
       name,
       description,
       startDate: startParsed.date,
       endDate: endParsed.date,
       targetLeftoverCents: targetParsed.cents,
-    });
+    };
+    const result = actor ? createBudget(actor, input) : createBudget(input);
     if (!result.ok) {
       setNameError(result.error);
       return;
@@ -69,40 +122,63 @@ export function HomeScreen({
     resetForm();
   }
 
+  const me: MeProfile | undefined = actor
+    ? { ...actor.profile, isModerator: actor.isModerator }
+    : undefined;
+
   return (
     <>
-      {budgets.length === 0 ? <p className="empty-note">No budgets yet.</p> : null}
-      {budgets.length > 0 ? (
+      {listed.length === 0 ? <p className="empty-note">No budgets yet.</p> : null}
+      {listed.length > 0 ? (
         <ul className="budget-list">
-          {budgets.map((budget) => (
+          {listed.map((budget) => (
             <li className="budget-row" key={budget.id}>
               <span className="budget-row__name">{budget.name}</span>
+              {summaries ? (
+                <span className="budget-row__badge">
+                  {badgeLabel(budget.viewerRelation)}
+                </span>
+              ) : null}
               <span className="budget-row__actions">
-                <button
-                  className="button button--primary"
-                  type="button"
-                  onClick={() => onOpen?.(budget.id)}
-                >
-                  Open
-                </button>
-                <button
-                  className="button button--secondary"
-                  type="button"
-                  onClick={() => copyBudget(budget.id)}
-                >
-                  Copy
-                </button>
-                <button
-                  className="button button--danger"
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm(deleteBudgetConfirmMessage(budget.name))) {
-                      deleteBudget(budget.id);
+                {canOpen(budget.viewerRelation) ? (
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    onClick={() => onOpen?.(budget.id)}
+                  >
+                    Open
+                  </button>
+                ) : null}
+                {canCopy(budget.viewerRelation) ? (
+                  <button
+                    className="button button--secondary"
+                    type="button"
+                    onClick={() =>
+                      actor
+                        ? copyBudget(actor, budget.id)
+                        : copyBudget(budget.id)
                     }
-                  }}
-                >
-                  Delete
-                </button>
+                  >
+                    Copy
+                  </button>
+                ) : null}
+                {canDelete(budget.viewerRelation) ? (
+                  <button
+                    className="button button--danger"
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(deleteBudgetConfirmMessage(budget.name))) {
+                        if (actor) {
+                          deleteBudget(actor, budget.id);
+                        } else {
+                          deleteBudget(budget.id);
+                        }
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                ) : null}
               </span>
             </li>
           ))}
@@ -176,6 +252,31 @@ export function HomeScreen({
           New budget
         </button>
       )}
+      {me?.isModerator ? (
+        <section>
+          <h2>Household</h2>
+          <ul className="plain-list">
+            {(household ?? []).map((user) => (
+              <li key={user.id}>
+                <span>{user.email}</span>
+                <label>
+                  From text
+                  <input
+                    type="checkbox"
+                    checked={user.canUseFromText}
+                    onChange={(event) =>
+                      onToggleFromText?.(user.id, event.target.checked)
+                    }
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+          {(household ?? []).length >= 10 ? (
+            <p>Sign-up is full (10 users).</p>
+          ) : null}
+        </section>
+      ) : null}
     </>
   );
 }

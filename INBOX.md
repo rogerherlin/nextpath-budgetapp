@@ -1,4 +1,5 @@
-- ui-ux.md, from-text.md, and node-http-server.md still describe no-login Home and GET/PUT `/api/store` after PRD/architecture moved to Auth + Firestore.
+- This environment has no `docker` or `gcloud`; the Cloud Run image was not built or pushed here.
+- ui-ux.md and from-text.md still describe no-login Home; from-text.md AC4 omits required `budgetId` on `/api/suggest-entries`.
 - Vitest 2 / tinypool can dump RangeError: Maximum call stack size exceeded after a failed test in this environment.
 - Categories tab Add/Edit is in ui-ux.md and Files to Modify, but categories.md has no ACs for those UI actions (stops at AC14).
 - prompts.md TDD item 6 points at specs/features/persitence.md; the spec file is persistence.md.

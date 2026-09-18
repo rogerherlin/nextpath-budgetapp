@@ -10,6 +10,9 @@ function summerBudget(): Budget {
   return {
     id: "b1",
     name: "Summer",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,
@@ -64,5 +67,60 @@ describe("AC18: Home list shows names", () => {
       expect(within(row).getByRole("button", { name: "Copy" })).toBeTruthy();
       expect(within(row).getByRole("button", { name: "Delete" })).toBeTruthy();
     }
+  });
+});
+
+describe("AC61: Moderator panel hidden for ordinary user", () => {
+  it("AC61: Moderator panel hidden for ordinary user", () => {
+    resetStore([]);
+    render(
+      <HomeScreen
+        actor={{
+          profile: {
+            id: "uid-alice",
+            email: "alice@example.com",
+            displayName: "Alice",
+            canUseFromText: false,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          isModerator: false,
+        }}
+      />,
+    );
+    expect(screen.queryByRole("heading", { name: "Household" })).toBeNull();
+  });
+});
+
+describe("AC60: Moderator panel", () => {
+  it("AC60: Moderator panel", () => {
+    const users = Array.from({ length: 10 }, (_, index) => ({
+      id: `uid-${index}`,
+      email: `user${index}@example.com`,
+      displayName: `User ${index}`,
+      canUseFromText: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }));
+    resetStore([]);
+    render(
+      <HomeScreen
+        actor={{
+          profile: {
+            id: "uid-mod",
+            email: "mod@example.com",
+            displayName: "Mod",
+            canUseFromText: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          isModerator: true,
+        }}
+        household={users}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Household" })).toBeTruthy();
+    for (const user of users) {
+      expect(screen.getByText(user.email)).toBeTruthy();
+    }
+    expect(screen.getAllByLabelText("From text")).toHaveLength(10);
+    expect(screen.getByText("Sign-up is full (10 users).")).toBeTruthy();
   });
 });

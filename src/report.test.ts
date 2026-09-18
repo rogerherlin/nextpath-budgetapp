@@ -6,6 +6,9 @@ function fixtureBudget(): Budget {
   return {
     id: "b1",
     name: "Summer",
+    ownerId: "uid-alice",
+    visibility: "hidden",
+    grants: [],
     description: "",
     startDate: null,
     endDate: null,
@@ -108,6 +111,9 @@ describe("AC9: Empty budget report", () => {
       buildReport({
         id: "b1",
         name: "Summer",
+        ownerId: "uid-alice",
+        visibility: "hidden",
+        grants: [],
         description: "",
         startDate: null,
         endDate: null,

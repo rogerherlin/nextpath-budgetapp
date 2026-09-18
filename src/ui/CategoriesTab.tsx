@@ -24,10 +24,12 @@ function CategoryList({
   categories,
   budget,
   kind,
+  readOnly,
 }: {
   categories: Category[];
   budget: Budget;
   kind: "income" | "expense";
+  readOnly: boolean;
 }) {
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState("");
@@ -90,6 +92,8 @@ function CategoryList({
               <>
                 <span className="category-row__name">{category.name}</span>
                 <span className="category-row__actions">
+                  {readOnly ? null : (
+                    <>
                   <button
                     className="button button--secondary"
                     type="button"
@@ -119,32 +123,42 @@ function CategoryList({
                   >
                     Delete
                   </button>
+                    </>
+                  )}
                 </span>
               </>
             )}
           </li>
         ))}
       </ul>
-      <form onSubmit={onAdd}>
-        <p className="field">
-          <input
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-            aria-label={`Add ${kind} category`}
-          />
-          {addError ? <span className="field-error">{addError}</span> : null}
-        </p>
-        <p className="form-actions">
-          <button className="button button--primary" type="submit">
-            Add
-          </button>
-        </p>
-      </form>
+      {readOnly ? null : (
+        <form onSubmit={onAdd}>
+          <p className="field">
+            <input
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              aria-label={`Add ${kind} category`}
+            />
+            {addError ? <span className="field-error">{addError}</span> : null}
+          </p>
+          <p className="form-actions">
+            <button className="button button--primary" type="submit">
+              Add
+            </button>
+          </p>
+        </form>
+      )}
     </>
   );
 }
 
-export function CategoriesTab({ budgetId }: { budgetId: string }) {
+export function CategoriesTab({
+  budgetId,
+  readOnly = false,
+}: {
+  budgetId: string;
+  readOnly?: boolean;
+}) {
   useStoreRevision();
   const budget = listBudgets().find((item) => item.id === budgetId);
   if (!budget) {
@@ -158,6 +172,7 @@ export function CategoriesTab({ budgetId }: { budgetId: string }) {
           budget={budget}
           categories={budget.incomeCategories}
           kind="income"
+          readOnly={readOnly}
         />
       </section>
       <section>
@@ -166,6 +181,7 @@ export function CategoriesTab({ budgetId }: { budgetId: string }) {
           budget={budget}
           categories={budget.expenseCategories}
           kind="expense"
+          readOnly={readOnly}
         />
       </section>
     </div>

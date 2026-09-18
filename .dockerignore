@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+dist
+.env
+.env.*
+data/budgets.json
+**/*serviceAccount*.json
+**/credentials.json
+**/*firebase-adminsdk*.json
+*.pem
+coverage

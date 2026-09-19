@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export function applyEnvFile(cwd: string = process.cwd()): void {
+export function applyEnvFile(
+  cwd: string = process.cwd(),
+  options: { overwrite?: boolean } = {},
+): void {
   const path = join(cwd, ".env");
   if (!existsSync(path)) {
     return;
@@ -24,7 +27,11 @@ export function applyEnvFile(cwd: string = process.cwd()): void {
     ) {
       value = value.slice(1, -1);
     }
-    if (process.env[key] === undefined) {
+    if (
+      options.overwrite === true ||
+      process.env[key] === undefined ||
+      process.env[key] === ""
+    ) {
       process.env[key] = value;
     }
   }

@@ -106,6 +106,8 @@ No auth. Reads `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_AUTH_DOMAIN`, `FIREBASE_WEB
 
 The response **must not** include `GEMINI_API_KEY`, `MODERATOR_EMAIL`, or service-account fields.
 
+When `FIREBASE_AUTH_EMULATOR_HOST` is a non-empty host:port (local emulators), the JSON also includes `authEmulatorHost` as an `http://` origin so the browser Auth SDK can call `connectAuthEmulator`. When that env is unset or empty, omit the key so production config stays the three public fields.
+
 ### `POST /api/register`
 
 Creates the Firestore profile for the token’s UID. The browser has already created the Firebase Auth user (email/password).
@@ -177,6 +179,23 @@ Body: `{ "canUseFromText": boolean }` only.
 **Given** caller is moderator and `:id` is the moderator’s own id
 **When** body `{ "canUseFromText": false }`
 **Then** status `200`, stored flag may be `false`, but `canUseFromText(actor)` and From-text HTTP still succeed for the moderator (`isModerator` wins).
+
+**Given** `:id` is not a profile
+**Then** `404` `Not found.`
+
+### `DELETE /api/admin/users/:id`
+
+Removes that household member: their Firestore profile, Firebase Auth user, every budget they **own**, and their `userId` from remaining budgets’ `grants`.
+
+**Given** caller is not moderator
+**Then** `403` `Not allowed.` and no delete.
+
+**Given** caller is moderator and `:id` is a non-moderator profile who owns budgets
+**When** `DELETE /api/admin/users/:id`
+**Then** status `200`, body `{"ok":true}`; the profile is gone; owned budgets are gone; Auth `deleteUser` is called with that uid.
+
+**Given** caller is moderator and `:id` is the moderator’s own id
+**Then** `403` `Not allowed.` and the profile remains.
 
 **Given** `:id` is not a profile
 **Then** `404` `Not found.`
@@ -344,7 +363,7 @@ Grant lookup: first matching `grants[].userId === actor.profile.id`. Unknown rol
 ### AC15: Sign in success shows Home
 **Given** the login screen; mocked Auth `signInWithEmailAndPassword` resolves; `GET /api/me` returns alice’s profile; `GET /api/budgets` returns `{ "budgets": [] }`
 **When** the user enters email `alice@example.com`, password `secret12`, and clicks `Sign in`
-**Then** the home title `Budgets` is shown; a button `Sign out` is shown; the heading `Sign in` is gone
+**Then** the home title `Budgets` is shown; a button `Sign out` is shown; the heading `Sign in` is gone; `Alice` and `alice@example.com` are shown
 
 ### AC16: Sign in failure
 **Given** mocked `signInWithEmailAndPassword` rejects
@@ -556,6 +575,11 @@ Grant lookup: first matching `grants[].userId === actor.profile.id`. Unknown rol
 **When** the budget screen renders
 **Then** the tab labels in order are exactly `Categories`, `Income`, `Expenses`, `Report`, `From text`
 
+### AC57b: From-text tab shown for moderator without stored flag
+**Given** moderator `canUseFromText` `false`, owner of the open budget
+**When** the budget screen renders
+**Then** the tab labels in order are exactly `Categories`, `Income`, `Expenses`, `Report`, `From text`
+
 ### AC58: Sharing UI on own budget
 **Given** alice owns the open budget; `GET /api/users` returns alice and bob
 **When** the budget screen renders for the owner
@@ -591,6 +615,46 @@ Grant lookup: first matching `grants[].userId === actor.profile.id`. Unknown rol
 **When** those files are inspected
 **Then** they do not import `firebase/firestore` or `getFirestore`; they may import `firebase/auth`
 
+### AC65: Config includes Auth emulator origin locally
+**Given** public Firebase web config `"k"` / `"demo.firebaseapp.com"` / `"demo"` and `firebaseAuthEmulatorHost` `"127.0.0.1:9099"`
+**When** `GET` `/api/config`
+**Then** status `200` and body exactly `{"apiKey":"k","authDomain":"demo.firebaseapp.com","projectId":"demo","authEmulatorHost":"http://127.0.0.1:9099"}`
+
+### AC66: Browser Auth uses the emulator when config says so
+**Given** `GET /api/config` returns `authEmulatorHost` `"http://127.0.0.1:9099"`
+**When** `loadFirebaseAuth` runs
+**Then** it calls `connectAuthEmulator` with that origin (so sign-in/register do not hit production Identity Toolkit)
+
+### AC67: Moderator deletes another user and their budgets
+**Given** moderator; alice owns hidden `"Summer"` (`"b1"`) and `"Winter"` (`"b2"`); bob owns `"BobBud"` (`"b3"`)
+**When** `DELETE /api/admin/users/uid-alice` as moderator
+**Then** status `200` body `{"ok":true}`; alice’s profile is gone; `"b1"` and `"b2"` are gone; `"b3"` remains; Auth `deleteUser` is called once with `"uid-alice"`
+
+### AC68: Deleting a user strips their grants
+**Given** moderator; alice has grant `edit` on bob’s `"b3"`
+**When** `DELETE /api/admin/users/uid-alice` as moderator
+**Then** `"b3"` still exists and `grants` does not include `"uid-alice"`
+
+### AC69: Non-moderator cannot delete a user
+**Given** alice is not moderator
+**When** `DELETE /api/admin/users/uid-bob` as alice
+**Then** status `403` `{"error":"Not allowed."}`; bob’s profile remains
+
+### AC70: Moderator cannot delete themself
+**Given** moderator profile `"uid-mod"`
+**When** `DELETE /api/admin/users/uid-mod` as moderator
+**Then** status `403` `{"error":"Not allowed."}`; the moderator profile remains; Auth `deleteUser` is not called
+
+### AC71: Delete unknown user
+**Given** moderator
+**When** `DELETE /api/admin/users/uid-missing` as moderator
+**Then** status `404` `{"error":"Not found."}`
+
+### AC72: Household Delete user control
+**Given** Home as moderator; household includes alice (`alice@example.com`) and the moderator
+**When** the Household list renders
+**Then** alice’s row has a button named `Delete user`; the moderator’s row does not; clicking alice’s button shows confirm `Delete user “alice@example.com”? Their budgets will also be deleted.`
+
 ## Files to Modify
 
 | File | Change |
@@ -598,8 +662,10 @@ Grant lookup: first matching `grants[].userId === actor.profile.id`. Unknown rol
 | `src/types.ts` | `UserProfile`, `Grant`, `Visibility`, `BudgetSummary`; add `ownerId`, `visibility`, `grants` on `Budget`. |
 | `src/acl.ts` | New: `canListSummary`, `canRead`, `canWrite`, `canManageSharing`, `canDelete`, `canUseFromText`, `isModeratorEmail`. |
 | `src/acl.test.ts` | AC20–AC29 (and matrix extras). |
-| `src/httpDispatch.ts` | Token gate; routes in API contracts; remove `/api/store`; suggest checks. |
-| `src/httpDispatch.test.ts` | AC1–AC13, AC30–AC55, AC62–AC63. |
+| `src/httpDispatch.ts` | Token gate; routes in API contracts; remove `/api/store`; suggest checks; optional `authEmulatorHost` on config. |
+| `src/httpDispatch.test.ts` | AC1–AC13, AC30–AC55, AC62–AC63, AC65. |
+| `src/authClient.ts` | Load web config; `connectAuthEmulator` when `authEmulatorHost` is present. |
+| `src/authClient.test.ts` | AC66. |
 | `src/server.ts` / `vite.config.ts` | Pass Admin Auth/Firestore deps and `MODERATOR_EMAIL` into dispatch. |
 | `src/firebaseAdmin.ts` | New: Admin init (emulator-aware); `verifyIdToken`; `deleteUser`. |
 | `src/ui/LoginScreen.tsx` | New: AC14, AC16–AC18 fields and errors. |
@@ -628,6 +694,8 @@ Grant lookup: first matching `grants[].userId === actor.profile.id`. Unknown rol
 |----------|------|-------|------|------|-------|
 | dispatchHttpRequest | AC1 config | three env vars | GET `/api/config` | exact JSON | none |
 | dispatchHttpRequest | AC2 config missing | empty apiKey | GET `/api/config` | 503 missing config | none |
+| dispatchHttpRequest | AC65 emulator config | emulator host set | GET `/api/config` | `authEmulatorHost` origin | none |
+| loadFirebaseAuth | AC66 emulator client | config has origin | loadFirebaseAuth | connectAuthEmulator | firebase/auth |
 | dispatchHttpRequest | AC3 health | no token | GET `/api/health` | `{"ok":true}` | none |
 | dispatchHttpRequest | AC4 no token | no header | GET `/api/me` | 401 Sign in required. | none |
 | dispatchHttpRequest | AC5 bad token | Bearer junk | GET `/api/me` | 401 | verifyIdToken fail |

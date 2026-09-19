@@ -35,6 +35,10 @@ export class FirestoreRepo implements AppRepo {
     return snap.docs.map((doc) => doc.data() as UserProfile);
   }
 
+  async removeProfile(id: string): Promise<void> {
+    await this.users().doc(id).delete();
+  }
+
   async budgetCount(): Promise<number> {
     const snap = await this.budgetsCol().count().get();
     return snap.data().count;

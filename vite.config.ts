@@ -36,9 +36,10 @@ function storeApiPlugin(): Plugin {
           return;
         }
         void (async () => {
+          applyEnvFile(process.cwd(), { overwrite: true });
           const env = loadEnv(server.config.mode, process.cwd(), "");
           for (const [key, value] of Object.entries(env)) {
-            if (process.env[key] === undefined) {
+            if (process.env[key] === undefined || process.env[key] === "") {
               process.env[key] = value;
             }
           }
@@ -72,6 +73,8 @@ function storeApiPlugin(): Plugin {
             firebaseWebApiKey: process.env.FIREBASE_WEB_API_KEY ?? "",
             firebaseWebAuthDomain: process.env.FIREBASE_WEB_AUTH_DOMAIN ?? "",
             firebaseWebProjectId: process.env.FIREBASE_WEB_PROJECT_ID ?? "",
+            firebaseAuthEmulatorHost:
+              process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "",
             verifyIdToken,
             deleteUser: deleteAuthUser,
           });

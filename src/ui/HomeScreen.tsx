@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from "react";
 import {
+  copyBudgetRemote,
+  createBudgetRemote,
+  deleteBudgetRemote,
+} from "../clientStore";
+import {
   copyBudget,
   createBudget,
   deleteBudget,
@@ -18,6 +23,10 @@ import { useStoreRevision } from "./useStoreRevision";
 
 export function deleteBudgetConfirmMessage(name: string): string {
   return `Delete budget “${name}”? This cannot be undone.`;
+}
+
+export function deleteUserConfirmMessage(email: string): string {
+  return `Delete user “${email}”? Their budgets will also be deleted.`;
 }
 
 function badgeLabel(relation: ViewerRelation): string {
@@ -53,12 +62,18 @@ export function HomeScreen({
   summaries,
   household,
   onToggleFromText,
+  onDeleteUser,
+  getIdToken,
+  onSummariesChange,
 }: {
   onOpen?: (budgetId: string) => void;
   actor?: Actor;
   summaries?: BudgetSummary[];
   household?: UserProfile[];
   onToggleFromText?: (userId: string, canUseFromText: boolean) => void;
+  onDeleteUser?: (userId: string) => void;
+  getIdToken?: () => Promise<string | null>;
+  onSummariesChange?: (next: BudgetSummary[]) => void;
 }) {
   useStoreRevision();
   const listed: Array<{
@@ -114,6 +129,18 @@ export function HomeScreen({
       endDate: endParsed.date,
       targetLeftoverCents: targetParsed.cents,
     };
+    if (getIdToken !== undefined) {
+      void (async () => {
+        const remote = await createBudgetRemote(getIdToken, input);
+        if (!remote.ok) {
+          setNameError(remote.error);
+          return;
+        }
+        onSummariesChange?.(remote.summaries);
+        resetForm();
+      })();
+      return;
+    }
     const result = actor ? createBudget(actor, input) : createBudget(input);
     if (!result.ok) {
       setNameError(result.error);
@@ -153,11 +180,25 @@ export function HomeScreen({
                   <button
                     className="button button--secondary"
                     type="button"
-                    onClick={() =>
-                      actor
-                        ? copyBudget(actor, budget.id)
-                        : copyBudget(budget.id)
-                    }
+                    onClick={() => {
+                      if (getIdToken !== undefined) {
+                        void (async () => {
+                          const remote = await copyBudgetRemote(
+                            getIdToken,
+                            budget.id,
+                          );
+                          if (remote.ok) {
+                            onSummariesChange?.(remote.summaries);
+                          }
+                        })();
+                        return;
+                      }
+                      if (actor) {
+                        copyBudget(actor, budget.id);
+                      } else {
+                        copyBudget(budget.id);
+                      }
+                    }}
                   >
                     Copy
                   </button>
@@ -168,6 +209,18 @@ export function HomeScreen({
                     type="button"
                     onClick={() => {
                       if (window.confirm(deleteBudgetConfirmMessage(budget.name))) {
+                        if (getIdToken !== undefined) {
+                          void (async () => {
+                            const remote = await deleteBudgetRemote(
+                              getIdToken,
+                              budget.id,
+                            );
+                            if (remote.ok) {
+                              onSummariesChange?.(remote.summaries);
+                            }
+                          })();
+                          return;
+                        }
                         if (actor) {
                           deleteBudget(actor, budget.id);
                         } else {
@@ -269,6 +322,19 @@ export function HomeScreen({
                     }
                   />
                 </label>
+                {user.id !== actor?.profile.id ? (
+                  <button
+                    className="button button--danger"
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(deleteUserConfirmMessage(user.email))) {
+                        onDeleteUser?.(user.id);
+                      }
+                    }}
+                  >
+                    Delete user
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -110,8 +110,10 @@ type DispatchOpts = {
   deleteUser?: (uid: string) => Promise<void>;
   geminiCaller?: GeminiCaller;
   firebaseWebApiKey?: string;
+  firebaseAuthEmulatorHost?: string;
   nowIso?: () => string;
   createId?: () => string;
+  verifyIdToken?: (token: string) => Promise<{ uid: string; email?: string }>;
 };
 
 function dispatch(input: DispatchOpts) {
@@ -127,7 +129,8 @@ function dispatch(input: DispatchOpts) {
     firebaseWebApiKey: input.firebaseWebApiKey ?? "k",
     firebaseWebAuthDomain: "demo.firebaseapp.com",
     firebaseWebProjectId: "demo",
-    verifyIdToken: tokens("uid-alice", "alice@example.com"),
+    firebaseAuthEmulatorHost: input.firebaseAuthEmulatorHost,
+    verifyIdToken: input.verifyIdToken ?? tokens("uid-alice", "alice@example.com"),
     deleteUser: input.deleteUser ?? (async () => {}),
     geminiCaller: input.geminiCaller,
     nowIso: input.nowIso,
@@ -159,6 +162,29 @@ describe("AC1: Public config", () => {
           apiKey: "k",
           authDomain: "demo.firebaseapp.com",
           projectId: "demo",
+        }),
+      );
+    });
+  });
+});
+
+describe("AC65: Config includes Auth emulator origin locally", () => {
+  it("AC65: Config includes Auth emulator origin locally", async () => {
+    await withTempDir(async (dir) => {
+      const result = await dispatch({
+        method: "GET",
+        pathname: "/api/config",
+        distDir: join(dir, "dist"),
+        repo: new MemoryRepo(),
+        firebaseAuthEmulatorHost: "127.0.0.1:9099",
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(
+        JSON.stringify({
+          apiKey: "k",
+          authDomain: "demo.firebaseapp.com",
+          projectId: "demo",
+          authEmulatorHost: "http://127.0.0.1:9099",
         }),
       );
     });
@@ -329,6 +355,29 @@ describe("AC9: Re-register is idempotent", () => {
       const body = JSON.parse(result.body) as UserProfile;
       expect(body.displayName).toBe("Alice");
       expect(body.canUseFromText).toBe(false);
+    });
+  });
+});
+
+describe("AC10b: Moderator flag uses profile email when token omits email", () => {
+  it("AC10b: Moderator flag uses profile email when token omits email", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(MOD);
+      const result = await dispatch({
+        method: "GET",
+        pathname: "/api/me",
+        authorization: "Bearer no-email",
+        distDir: join(dir, "dist"),
+        repo,
+        verifyIdToken: async () => ({ uid: "uid-mod" }),
+      });
+      expect(result.status).toBe(200);
+      const body = JSON.parse(result.body) as UserProfile & {
+        isModerator: boolean;
+      };
+      expect(body.isModerator).toBe(true);
+      expect(body.canUseFromText).toBe(true);
     });
   });
 });
@@ -1132,6 +1181,117 @@ describe("AC50: Alice cannot toggle her own From-text flag", () => {
       expect(result.status).toBe(403);
       expect(result.body).toBe(JSON.stringify({ error: "Not allowed." }));
       expect((await repo.getProfile("uid-alice"))?.canUseFromText).toBe(false);
+    });
+  });
+});
+
+describe("AC67: Moderator deletes another user and their budgets", () => {
+  it("AC67: Moderator deletes another user and their budgets", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedHousehold(repo);
+      await repo.saveBudget(emptyBudget("b1", "Summer", "uid-alice"));
+      await repo.saveBudget(emptyBudget("b2", "Winter", "uid-alice"));
+      await repo.saveBudget(emptyBudget("b3", "BobBud", "uid-bob"));
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-alice",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(JSON.stringify({ ok: true }));
+      expect(await repo.getProfile("uid-alice")).toBeNull();
+      expect(await repo.getBudgetDoc("b1")).toBeNull();
+      expect(await repo.getBudgetDoc("b2")).toBeNull();
+      expect((await repo.getBudgetDoc("b3"))?.name).toBe("BobBud");
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-alice");
+    });
+  });
+});
+
+describe("AC68: Deleting a user strips their grants", () => {
+  it("AC68: Deleting a user strips their grants", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedHousehold(repo);
+      await repo.saveBudget(
+        emptyBudget("b3", "BobBud", "uid-bob", {
+          grants: [{ userId: "uid-alice", role: "edit" }],
+        }),
+      );
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-alice",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(200);
+      expect((await repo.getBudgetDoc("b3"))?.grants).toEqual([]);
+    });
+  });
+});
+
+describe("AC69: Non-moderator cannot delete a user", () => {
+  it("AC69: Non-moderator cannot delete a user", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedHousehold(repo);
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-bob",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(JSON.stringify({ error: "Not allowed." }));
+      expect(await repo.getProfile("uid-bob")).not.toBeNull();
+    });
+  });
+});
+
+describe("AC70: Moderator cannot delete themself", () => {
+  it("AC70: Moderator cannot delete themself", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedHousehold(repo);
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-mod",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(JSON.stringify({ error: "Not allowed." }));
+      expect(await repo.getProfile("uid-mod")).not.toBeNull();
+      expect(deleteUser).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("AC71: Delete unknown user", () => {
+  it("AC71: Delete unknown user", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedHousehold(repo);
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-missing",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(404);
+      expect(result.body).toBe(JSON.stringify({ error: "Not found." }));
     });
   });
 });

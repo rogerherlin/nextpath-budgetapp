@@ -18,6 +18,7 @@ import {
   copyBudgetForActor,
   createBudgetForActor,
   deleteBudgetForActor,
+  deleteHouseholdUser,
   directoryUser,
   getBudget,
   isValidVisibility,
@@ -29,7 +30,7 @@ import {
   sortProfiles,
   type AppRepo,
 } from "./repo";
-import type { Actor, Budget, Category, Entry, Grant, GrantRole, UserProfile } from "./types";
+import type { Actor, Budget, Category, DateParts, Entry, Grant, GrantRole, UserProfile } from "./types";
 
 export type HttpDispatchResult = {
   status: number;
@@ -49,6 +50,7 @@ export type HttpDispatchInput = {
   firebaseWebApiKey: string;
   firebaseWebAuthDomain: string;
   firebaseWebProjectId: string;
+  firebaseAuthEmulatorHost?: string;
   verifyIdToken: (token: string) => Promise<VerifiedToken>;
   deleteUser: (uid: string) => Promise<void>;
   geminiCaller?: GeminiCaller;
@@ -143,6 +145,25 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function asDateParts(value: unknown): DateParts | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  const rec = asRecord(value);
+  if (
+    rec === null ||
+    typeof rec.year !== "number" ||
+    typeof rec.month !== "number" ||
+    typeof rec.day !== "number"
+  ) {
+    return undefined;
+  }
+  return { year: rec.year, month: rec.month, day: rec.day };
+}
+
 function actorFrom(
   profile: UserProfile,
   isModerator: boolean,
@@ -179,9 +200,13 @@ async function authenticate(input: HttpDispatchInput): Promise<Session> {
   } catch {
     return { ok: false, result: errorResult(401, "Sign in required.") };
   }
-  const email = verified.email ?? "";
-  const isModerator = isModeratorEmail(email, input.moderatorEmail);
   const profile = await input.repo.getProfile(verified.uid);
+  const tokenEmail = (verified.email ?? "").trim();
+  const profileEmail = (profile?.email ?? "").trim();
+  const email = tokenEmail !== "" ? tokenEmail : profileEmail;
+  const isModerator =
+    isModeratorEmail(email, input.moderatorEmail) ||
+    isModeratorEmail(profileEmail, input.moderatorEmail);
   return {
     ok: true,
     uid: verified.uid,
@@ -320,9 +345,20 @@ async function dispatchApi(
     if (apiKey === "" || authDomain === "" || projectId === "") {
       return errorResult(503, "Firebase web config is missing.");
     }
+    const emulatorHost = (input.firebaseAuthEmulatorHost ?? "").trim();
+    if (emulatorHost === "") {
+      return jsonResult(
+        200,
+        JSON.stringify({ apiKey, authDomain, projectId }),
+      );
+    }
+    const authEmulatorHost = emulatorHost.startsWith("http://") ||
+      emulatorHost.startsWith("https://")
+      ? emulatorHost
+      : `http://${emulatorHost}`;
     return jsonResult(
       200,
-      JSON.stringify({ apiKey, authDomain, projectId }),
+      JSON.stringify({ apiKey, authDomain, projectId, authEmulatorHost }),
     );
   }
   if (!input.pathname.startsWith("/api/")) {
@@ -357,6 +393,19 @@ async function dispatchApi(
   }
 
   const adminUser = /^\/api\/admin\/users\/([^/]+)$/.exec(input.pathname);
+  if (adminUser !== null && input.method === "DELETE") {
+    const result = await deleteHouseholdUser(
+      repo,
+      actor,
+      adminUser[1] ?? "",
+      input.moderatorEmail,
+      input.deleteUser,
+    );
+    if (!result.ok) {
+      return errorResult(result.status, result.error);
+    }
+    return jsonResult(200, JSON.stringify({ ok: true }));
+  }
   if (adminUser !== null && input.method === "PATCH") {
     if (!actor.isModerator) {
       return errorResult(403, "Not allowed.");
@@ -392,6 +441,8 @@ async function dispatchApi(
         name: data.name,
         description:
           typeof data.description === "string" ? data.description : undefined,
+        startDate: asDateParts(data.startDate),
+        endDate: asDateParts(data.endDate),
         targetLeftoverCents:
           data.targetLeftoverCents === null ||
           typeof data.targetLeftoverCents === "number"

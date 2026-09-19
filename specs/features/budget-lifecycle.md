@@ -161,6 +161,11 @@ Copy is allowed when the actor can **read** the source (`canRead`: owner, modera
 **When** bob’s home renders
 **Then** `Summer` is not shown
 
+### AC21: Created budget appears on Home
+**Given** alice is signed in; `GET /api/budgets` is `[]`
+**When** she submits New budget with name `"Summer"`
+**Then** the client `POST`s `/api/budgets`; Home lists `"Summer"` with badge `Yours` and Open/Copy/Delete; `No budgets yet.` is gone
+
 ## Files to Modify
 
 | File | Change |
@@ -172,8 +177,10 @@ Copy is allowed when the actor can **read** the source (`canRead`: owner, modera
 | `src/names.test.ts` | Tests for AC7–AC9. |
 | `src/budgets.test.ts` | Tests for AC1–AC6, AC5b, AC10–AC15, AC13b–c, AC14b. |
 | `src/acl.test.ts` | Role × action matrix. |
-| `src/ui/HomeScreen.tsx` | Badges; hide actions; AC16–AC18, AC20. |
+| `src/ui/HomeScreen.tsx` | Badges; hide actions; AC16–AC18, AC20; AC21 POST create and refresh summaries. |
 | `src/ui/HomeScreen.test.tsx` | Tests for AC16–AC18, AC20. |
+| `src/App.test.tsx` | AC21 created budget appears on Home. |
+| `src/clientStore.ts` | POST create / copy / DELETE then hydrate (PUT cannot create). |
 | `src/ui/BudgetScreen.tsx` | Read-only browse (AC19). |
 
 ## Risk Assessment
@@ -206,6 +213,7 @@ Copy is allowed when the actor can **read** the source (`canRead`: owner, modera
 | HomeScreen | AC16 | Delete | dialog | exact string |
 | HomeScreen | AC17 | empty list | render | `No budgets yet.` + New budget |
 | HomeScreen | AC18 | mixed grants | render | actions per table |
+| App / HomeScreen | AC21 | empty summaries | save Summer | POST then list Summer | fetch mock |
 | BudgetScreen | AC19 | browse | open | no mutate controls |
 | HomeScreen | AC20 | hidden stranger | bob home | Summer absent |
 

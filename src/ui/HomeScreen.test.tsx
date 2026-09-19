@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetStore } from "../budgets";
 import type { Budget } from "../types";
-import { HomeScreen } from "./HomeScreen";
+import { HomeScreen, deleteUserConfirmMessage } from "./HomeScreen";
 
 function summerBudget(): Budget {
   return {
@@ -122,5 +122,62 @@ describe("AC60: Moderator panel", () => {
     }
     expect(screen.getAllByLabelText("From text")).toHaveLength(10);
     expect(screen.getByText("Sign-up is full (10 users).")).toBeTruthy();
+  });
+});
+
+describe("AC72: Household Delete user control", () => {
+  it("AC72: Household Delete user control", () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    resetStore([]);
+    render(
+      <HomeScreen
+        actor={{
+          profile: {
+            id: "uid-mod",
+            email: "mod@example.com",
+            displayName: "Mod",
+            canUseFromText: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          isModerator: true,
+        }}
+        household={[
+          {
+            id: "uid-alice",
+            email: "alice@example.com",
+            displayName: "Alice",
+            canUseFromText: false,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: "uid-mod",
+            email: "mod@example.com",
+            displayName: "Mod",
+            canUseFromText: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+    const aliceRow = screen.getByText("alice@example.com").closest("li");
+    const modRow = screen.getByText("mod@example.com").closest("li");
+    expect(aliceRow).toBeTruthy();
+    expect(modRow).toBeTruthy();
+    expect(
+      within(aliceRow as HTMLElement).getByRole("button", { name: "Delete user" }),
+    ).toBeTruthy();
+    expect(
+      within(modRow as HTMLElement).queryByRole("button", { name: "Delete user" }),
+    ).toBeNull();
+    fireEvent.click(
+      within(aliceRow as HTMLElement).getByRole("button", { name: "Delete user" }),
+    );
+    expect(confirm).toHaveBeenCalledWith(
+      'Delete user “alice@example.com”? Their budgets will also be deleted.',
+    );
+    expect(deleteUserConfirmMessage("alice@example.com")).toBe(
+      'Delete user “alice@example.com”? Their budgets will also be deleted.',
+    );
   });
 });

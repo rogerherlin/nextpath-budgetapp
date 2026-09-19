@@ -14,6 +14,7 @@ import { isModeratorEmail } from "./acl";
 import { migrateJsonIfNeeded } from "./migrate";
 import { APP_BUDGETS_FILE } from "./paths";
 import {
+  readFirebaseAuthEmulatorHost,
   readFirebaseWebConfig,
   readGeminiApiKey,
   readModeratorEmail,
@@ -66,6 +67,7 @@ const server = createServer((req, res) => {
       firebaseWebApiKey: web.apiKey,
       firebaseWebAuthDomain: web.authDomain,
       firebaseWebProjectId: web.projectId,
+      firebaseAuthEmulatorHost: readFirebaseAuthEmulatorHost(),
       verifyIdToken,
       deleteUser: deleteAuthUser,
     });

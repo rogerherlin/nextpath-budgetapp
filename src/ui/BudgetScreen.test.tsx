@@ -72,6 +72,33 @@ describe("AC57: From-text tab shown with permission", () => {
   });
 });
 
+describe("AC57b: From-text tab shown for moderator without stored flag", () => {
+  it("AC57b: From-text tab shown for moderator without stored flag", () => {
+    resetStore([budgetFixture()]);
+    render(
+      <BudgetScreen
+        budgetId="b1"
+        me={{
+          ...aliceMe(false),
+          isModerator: true,
+        }}
+      />,
+    );
+    const tabs = document.querySelector(".tabs");
+    expect(tabs).toBeTruthy();
+    const labels = within(tabs as HTMLElement)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(labels).toEqual([
+      "Categories",
+      "Income",
+      "Expenses",
+      "Report",
+      "From text",
+    ]);
+  });
+});
+
 describe("AC58: Sharing UI on own budget", () => {
   it("AC58: Sharing UI on own budget", async () => {
     vi.stubGlobal(

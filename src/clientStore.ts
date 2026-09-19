@@ -1,4 +1,4 @@
-import { listBudgets, resetStore } from "./budgets";
+import { listBudgets, resetStore, type CreateBudgetInput } from "./budgets";
 import { setPersist } from "./persist";
 import type { Budget, BudgetSummary } from "./types";
 
@@ -86,4 +86,79 @@ export async function hydrateFromServer(
     setPersist(() => {});
   }
   return { ok: true, summaries };
+}
+
+async function authorizedJson(
+  getIdToken: () => Promise<string | null>,
+  url: string,
+  init: RequestInit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = await getIdToken();
+  if (token === null || token === "") {
+    return { ok: false, error: "Sign in required." };
+  }
+  try {
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(init.headers ?? {}),
+      },
+    });
+    const data: unknown = await response.json();
+    if (!response.ok) {
+      return { ok: false, error: errorFromBody(data) };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Sign in required." };
+  }
+}
+
+export async function createBudgetRemote(
+  getIdToken: () => Promise<string | null>,
+  input: CreateBudgetInput,
+): Promise<
+  { ok: true; summaries: BudgetSummary[] } | { ok: false; error: string }
+> {
+  const posted = await authorizedJson(getIdToken, "/api/budgets", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!posted.ok) {
+    return posted;
+  }
+  return hydrateFromServer(getIdToken);
+}
+
+export async function copyBudgetRemote(
+  getIdToken: () => Promise<string | null>,
+  id: string,
+): Promise<
+  { ok: true; summaries: BudgetSummary[] } | { ok: false; error: string }
+> {
+  const copied = await authorizedJson(getIdToken, `/api/budgets/${id}/copy`, {
+    method: "POST",
+    body: "{}",
+  });
+  if (!copied.ok) {
+    return copied;
+  }
+  return hydrateFromServer(getIdToken);
+}
+
+export async function deleteBudgetRemote(
+  getIdToken: () => Promise<string | null>,
+  id: string,
+): Promise<
+  { ok: true; summaries: BudgetSummary[] } | { ok: false; error: string }
+> {
+  const removed = await authorizedJson(getIdToken, `/api/budgets/${id}`, {
+    method: "DELETE",
+  });
+  if (!removed.ok) {
+    return removed;
+  }
+  return hydrateFromServer(getIdToken);
 }

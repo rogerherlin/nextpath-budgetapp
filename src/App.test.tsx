@@ -96,7 +96,88 @@ describe("AC15: Sign in success shows Home", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(screen.getByText("Budgets")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByText("Alice")).toBeTruthy();
+    expect(screen.getByText("alice@example.com")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Sign in" })).toBeNull();
+  });
+});
+
+describe("AC21: Created budget appears on Home", () => {
+  it("AC21: Created budget appears on Home", async () => {
+    const summerSummary = {
+      id: "b-new",
+      name: "Summer",
+      ownerId: "uid-alice",
+      ownerDisplayName: "Alice",
+      visibility: "hidden" as const,
+      startDate: null,
+      endDate: null,
+      viewerRelation: "owner" as const,
+    };
+    const summerBudget = {
+      id: "b-new",
+      name: "Summer",
+      ownerId: "uid-alice",
+      visibility: "hidden",
+      grants: [],
+      description: "",
+      startDate: null,
+      endDate: null,
+      targetLeftoverCents: null,
+      incomeCategories: [],
+      expenseCategories: [],
+      incomeEntries: [],
+      expenseEntries: [],
+    };
+    let listed: typeof summerSummary[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url === "/api/me") {
+          return { ok: true, json: async () => aliceMe };
+        }
+        if (url === "/api/budgets" && method === "POST") {
+          listed = [summerSummary];
+          return { ok: true, json: async () => summerBudget };
+        }
+        if (url === "/api/budgets") {
+          return { ok: true, json: async () => ({ budgets: listed }) };
+        }
+        if (url === "/api/budgets/b-new") {
+          return { ok: true, json: async () => summerBudget };
+        }
+        return { ok: false, json: async () => ({ error: "Not found." }) };
+      }),
+    );
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy(),
+    );
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "alice@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(screen.getByText("No budgets yet.")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "New budget" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Summer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByText("Summer")).toBeTruthy());
+    expect(screen.queryByText("No budgets yet.")).toBeNull();
+    expect(screen.getByText("Yours")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
+    const posts = vi.mocked(fetch).mock.calls.filter(([input, init]) => {
+      return String(input) === "/api/budgets" && init?.method === "POST";
+    });
+    expect(posts).toHaveLength(1);
   });
 });
 

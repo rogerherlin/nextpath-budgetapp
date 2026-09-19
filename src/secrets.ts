@@ -20,6 +20,10 @@ export function readFirebaseWebConfig(): {
   };
 }
 
+export function readFirebaseAuthEmulatorHost(): string {
+  return process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "";
+}
+
 export function persistAdapterName(): "firestore" | "memory" {
   return process.env.BUDGETAPP_MEMORY_REPO === "1" ? "memory" : "firestore";
 }

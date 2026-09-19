@@ -29,9 +29,8 @@ Left-aligned card, comfortable spacing. Keyboard: tab through fields; primary ac
 **Home**
 
 - Title `Budgets`. Button `Sign out` returns to the login heading.
-- If there are no budgets: text `No budgets yet.` and button `New budget`.
-- If there are budgets: a list. Each row is a `listitem` with class `budget-row`; shows the name; badge `Yours` / `Public` / `Shared`; buttons `Open`, `Copy`, `Delete` only when the viewer relation allows (see-only and public-summary: no Open/Copy/Delete; browse/edit: Open and Copy, no Delete).
-- Moderator: heading `Household` with emails and a `From text` checkbox per user. At 10 profiles: `Sign-up is full (10 users).`
+- The signed-in viewer’s `displayName` and `email` sit in a `.session-bar` header above the page title (Home and open budget), stacked, with `Sign out` on the right.
+- Moderator: heading `Household` with emails, a `From text` checkbox per user, and `Delete user` on other members (not self). Confirm: `Delete user “{email}”? Their budgets will also be deleted.` At 10 profiles: `Sign-up is full (10 users).`
 - `New budget` opens a short form on the same page: `Name` (required), `Description`, `Start`, `End`, `Target leftover (EUR)`. Buttons `Save` and `Cancel`. Labels stack above inputs.
 - Delete uses `window.confirm` with exactly: `Delete budget “{name}”? This cannot be undone.` OK runs delete; Cancel does nothing.
 

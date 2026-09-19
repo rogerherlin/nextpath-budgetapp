@@ -208,6 +208,49 @@ button:focus {
   margin: 0.25rem 0 1rem;
 }
 
+.session-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1.25rem;
+  margin: 0 0 1.25rem;
+  padding: 0.7rem 0.95rem;
+  border: 1px solid #c5ddd4;
+  border-radius: var(--radius);
+  background: #eef6f3;
+}
+
+.session-bar__who {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.session-bar__name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.session-bar__email {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.session-bar .button {
+  flex-shrink: 0;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.session-bar .button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .header-form {
   margin-bottom: 1.25rem;
 }

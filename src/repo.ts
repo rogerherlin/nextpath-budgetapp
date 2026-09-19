@@ -4,6 +4,7 @@ import {
   canManageSharing,
   canRead,
   canWrite,
+  isModeratorEmail,
   viewerRelation,
 } from "./acl";
 import {
@@ -36,6 +37,7 @@ export interface AppRepo {
   getProfile(id: string): Promise<UserProfile | null>;
   saveProfile(profile: UserProfile): Promise<void>;
   listProfiles(): Promise<UserProfile[]>;
+  removeProfile(id: string): Promise<void>;
   budgetCount(): Promise<number>;
   getBudgetDoc(id: string): Promise<Budget | null>;
   saveBudget(budget: Budget): Promise<void>;
@@ -71,6 +73,10 @@ export class MemoryRepo implements AppRepo {
 
   async listProfiles(): Promise<UserProfile[]> {
     return [...this.profiles.values()].map(cloneProfile);
+  }
+
+  async removeProfile(id: string): Promise<void> {
+    this.profiles.delete(id);
   }
 
   async budgetCount(): Promise<number> {
@@ -323,6 +329,42 @@ export async function saveWritableBudget(
   };
   await repo.saveBudget(next);
   return { ok: true, budget: next };
+}
+
+export async function deleteHouseholdUser(
+  repo: AppRepo,
+  actor: Actor,
+  id: string,
+  moderatorEmail: string,
+  deleteAuthUser: (uid: string) => Promise<void>,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!actor.isModerator) {
+    return { ok: false, error: "Not allowed.", status: 403 };
+  }
+  const existing = await repo.getProfile(id);
+  if (existing === null) {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
+  if (
+    id === actor.profile.id ||
+    isModeratorEmail(existing.email, moderatorEmail)
+  ) {
+    return { ok: false, error: "Not allowed.", status: 403 };
+  }
+  const budgets = await repo.listBudgetDocs();
+  for (const budget of budgets) {
+    if (budget.ownerId === id) {
+      await repo.removeBudget(budget.id);
+      continue;
+    }
+    const grants = budget.grants.filter((grant) => grant.userId !== id);
+    if (grants.length !== budget.grants.length) {
+      await repo.saveBudget({ ...budget, grants });
+    }
+  }
+  await repo.removeProfile(id);
+  await deleteAuthUser(id);
+  return { ok: true };
 }
 
 export function directoryUser(profile: UserProfile): {

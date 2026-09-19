@@ -40,6 +40,24 @@ function isMeProfile(value: unknown): value is MeProfile {
   );
 }
 
+function SessionBar({ me }: { me: MeProfile }) {
+  return (
+    <header className="session-bar">
+      <span className="session-bar__who">
+        <span className="session-bar__name">{me.displayName}</span>
+        <span className="session-bar__email">{me.email}</span>
+      </span>
+      <button
+        className="button button--secondary"
+        type="button"
+        onClick={() => void signOutUser()}
+      >
+        Sign out
+      </button>
+    </header>
+  );
+}
+
 export function App() {
   const [user, setUser] = useState<ClientUser | null | undefined>(undefined);
   const [me, setMe] = useState<MeProfile | null>(null);
@@ -158,15 +176,7 @@ export function App() {
   if (budgetId) {
     return (
       <main>
-        <p className="form-actions">
-          <button
-            className="button button--secondary"
-            type="button"
-            onClick={() => void signOutUser()}
-          >
-            Sign out
-          </button>
-        </p>
+        <SessionBar me={me} />
         <BudgetScreen
           budgetId={budgetId}
           me={me}
@@ -178,21 +188,39 @@ export function App() {
 
   return (
     <main>
+      <SessionBar me={me} />
       <h1>Budgets</h1>
-      <p className="form-actions">
-        <button
-          className="button button--secondary"
-          type="button"
-          onClick={() => void signOutUser()}
-        >
-          Sign out
-        </button>
-      </p>
       <HomeScreen
         actor={actor}
         summaries={summaries}
         household={household}
+        getIdToken={() => user.getIdToken()}
+        onSummariesChange={setSummaries}
         onOpen={setBudgetId}
+        onDeleteUser={async (userId) => {
+          const token = await user.getIdToken();
+          await fetch(`/api/admin/users/${userId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const adminResponse = await fetch("/api/admin/users", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const adminData: unknown = await adminResponse.json();
+          if (
+            adminResponse.ok &&
+            typeof adminData === "object" &&
+            adminData !== null &&
+            "users" in adminData &&
+            Array.isArray(adminData.users)
+          ) {
+            setHousehold(adminData.users as UserProfile[]);
+          }
+          const hydrated = await hydrateFromServer(() => user.getIdToken());
+          if (hydrated.ok) {
+            setSummaries(hydrated.summaries);
+          }
+        }}
         onToggleFromText={async (userId, canUse) => {
           const token = await user.getIdToken();
           await fetch(`/api/admin/users/${userId}`, {

@@ -1,5 +1,6 @@
 import { getApps, initializeApp } from "firebase/app";
 import {
+  connectAuthEmulator,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
@@ -39,6 +40,7 @@ export async function loadFirebaseAuth(): Promise<void> {
     apiKey: string;
     authDomain: string;
     projectId: string;
+    authEmulatorHost?: unknown;
   };
   if (getApps().length === 0) {
     initializeApp({
@@ -46,6 +48,14 @@ export async function loadFirebaseAuth(): Promise<void> {
       authDomain: config.authDomain,
       projectId: config.projectId,
     });
+    if (
+      typeof config.authEmulatorHost === "string" &&
+      config.authEmulatorHost.trim() !== ""
+    ) {
+      connectAuthEmulator(getAuth(), config.authEmulatorHost, {
+        disableWarnings: true,
+      });
+    }
   }
 }
 

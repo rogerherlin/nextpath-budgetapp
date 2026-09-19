@@ -144,9 +144,123 @@ after two rounds without progress — then tell me what is stuck.
 
 **Answer:** `npm test` was green (**84 passed**, 12 files) and `tsc` exited 0. Review 1 was **CHANGES_REQUIRED**: report/persistence ACs mapped to tests, plus extras and gaps (cross-kind `updateEntry`, weak `parseStoreJson`, fire-and-forget PUT, empty-name update vs lifecycle spec). Fixes were started via TDD; leftover validation notes also sit in INBOX.md.
 
-## 14 · This file
+## 14 · This file (first pass)
 
 Write all my prompts to prompts.md and briefly summarise what you
 answered with three sentences each.
 
-**Answer:** This file lists the prompts above in order, including the reused TDD block and later UI/review work. Each **Answer** is three sentences. System “briefly inform the user” follow-ups after background jobs are omitted.
+**Answer:** The file listed prompts 1–13 in order, including the reused TDD block and later UI/review work. Each **Answer** was three sentences. System “briefly inform the user” follow-ups after background jobs were omitted.
+
+## 15 · Explain the UI fix (read-only)
+
+can you explain what was wrong and what you dit to fix it? just asking do not change or fix anything!
+
+**Answer:** `App` only rendered the **Budgets** heading; Home, tabs, and persistence already existed but were not mounted. Wiring load/save and the screens made a working app. Nothing was changed in that explanation pass.
+
+## 16 · Cursor billing
+
+can i still use this prompt, cursor payment did not work
+
+**Answer:** A failed payment can pause Pro; the chat may still work on a limited plan. Check Cursor Settings → Billing / Account. The prompt itself is not blocked by billing.
+
+## 17 · Greenfield vs brownfield
+
+asking advice, making major changes to a greenfield project built from scratch, should i continue as a geen field or should i treat it as a brownfield onward
+
+Follow-ups: if I want to adjust look and feel, is it brownfield? is it greenfield? in what file should I write the new UI specs?
+
+**Answer:** After specs, tests, and a working UI, treat further work as brownfield: change existing contracts, do not pretend the repo is empty. Restyling is brownfield presentation work, not a new product. Write look-and-feel in `specs/ui-ux.md`, not a new feature spec.
+
+## 18 · From-text (Gemini) — research then implement
+
+We want a new functionality, suggest implementation, no code yet: free-text incomes/expenses sent to Gemini with existing categories; parse suggestions; add categories/entries; never delete from the LLM; key in `.env`.
+
+Then: review before accept; user picks income vs expense; extra tab; gemini-2.0-flash; ignore currency words; keep the model’s new category wording. Then: OK, start implementation!
+
+**Answer:** A From-text tab was specified and built: Gemini suggests rows, the user reviews, then the app adds categories and entries. The key is `GEMINI_API_KEY` in `.env` on the server, never in the browser. New categories keep the model’s names unless later prompts asked for broader groups.
+
+## 19 · Gemini key missing / parse errors
+
+Now app says Gemini API key is missing. The key is in the .env.example-file. Is the name wrong? so renaming should do? why still missing? "bought new shoes 40 eur" returns Could not suggest entries. milk 4 euros becomes category "milk" instead of food/groceries.
+
+**Answer:** The live file must be `.env` with `GEMINI_API_KEY`; `.env.example` is only a template, and Vite/Node must be restarted. “Could not suggest entries” meant the model reply did not match the parser, which was tightened. The prompt was then changed so item names go in comments and categories stay broader (food, not milk).
+
+## 20 · Nicer look and feel
+
+How would you change the look and feel for something nicer in this ui? Yes please fix ui as suggested. so how do i run this app
+
+**Answer:** Spec and CSS were updated for a cleaner household look without changing labels or flows. Run with `npm start` and open the Vite URL (usually `http://localhost:5173/`). Browser checks confirmed Home and Budget still worked.
+
+## 21 · Login ideas, passphrase, Cloud Run “free”
+
+suggest a login system for this app. What if Docker + Cloud Run with one passphrase anyone who knows it can touch any budget? Plan publish with a docker volume for budgets/env. Is this possible on a free unpaid Cloud Run account? Is Vite-in-dev enough for a Docker image on Cloud Run?
+
+**Answer:** A shared passphrase is weak on the public internet; Cloud Run has no durable Docker volume like Compose. You need a Cloud Billing account even if usage can stay near $0. The image must run a production HTTP server on `$PORT`, not `npm start` (Vite dev).
+
+## 22 · Accounts + Node server locally
+
+what kind of changes if we want login and user accounts (public list, own edit, hide, browse/edit grants). What would a swap to Node mean — can I still run locally? bypass Vite? still use Vite? need Node to Docker/Cloud Run? command to start Node now? add a server file and script? `npm run build` / `npm run serve` error. put changes on a new branch. would this run on Cloud Run in Docker as such?
+
+**Answer:** Accounts need auth, ACL, and a real API host; Vite stays the frontend toolchain and can proxy `/api`. A small Node serve path (`build` + `serve`) was added so production is not the Vite middleware. Put that work on a feature branch; Cloud Run still needs Dockerfile, `$PORT`, and a store other than the container disk.
+
+## 23 · Secrets Manager and Firebase from Cloud Run
+
+deploying this app to google cloud run with a docker image. can the node server running on that image access google secrets manager and firebase database
+
+**Answer:** Yes, if the Cloud Run runtime service account has Secret Manager accessor and Firestore/Auth roles. The Node Admin SDK talks to Firebase; secrets are mounted as env vars. The browser still never gets Gemini or Admin credentials.
+
+## 24 · Full auth / ACL / Firestore product
+
+what kind of changes if we want login and user accounts, local + Cloud Run, Secret Manager and Firebase. Everyone can see the list but only own budgets by default; visibility and see/browse/edit grants; moderator; max 10 users; From-text gated by moderator. plan further, will this work with a Dockerfile on GCR?
+
+**Answer:** That became the Firebase Auth + Firestore + ACL plan (hidden by default, grants, moderator, cap 10). Docker/Cloud Run works if the API uses Admin SDK and secrets, not a volume for JSON. Specs and code followed in assigned plan to-dos.
+
+## 25 · Plan to-dos: docs, specs, ACL, API, UI, Cloud Run
+
+Implement plan to-dos (do not edit the plan file): rewrite-product-docs; spec-auth-sharing; acl-domain; api-firestore; ui-auth-sharing; cloudrun.
+
+Also: Default visibility = hidden, edit does not include delete or sharing, display names on the public list, migration owner of budgets.json is the moderator.
+
+**Answer:** PRD/AGENTS/architecture were rewritten for accounts and Firestore. Specs, pure ACL, token-checked per-budget APIs, login/sharing UI, Dockerfile/`cloudbuild.yaml`, and a Cloud Run runbook were added. Hidden default, edit ≠ delete/sharing, and moderator as JSON migration owner were locked in.
+
+## 26 · Local Firebase setup
+
+so what should i install on my computer? firebase-tools EBADENGINE on Node 18. where do I get FIREBASE_WEB_API_KEY? could not find web app / enable Email/Password. now email/password seems enabled. firebase deploy needs login. Enable Gemini in Firebase? CLI usage reporting? am I ready to run locally? what is gcloud auth application-default login? should I install gcloud? real email or fake username?
+
+**Answer:** Install Node 20+, Firebase CLI, and `gcloud` for ADC/deploy; use the Web API key from Firebase project settings. Enable Email/Password; `firebase login` n/y prompts are optional product vs telemetry. Fake `user@…` addresses work as usernames; the moderator email in `.env` must match the signed-in account.
+
+## 27 · Local app bugs after auth
+
+cant register or log in. I can add budgets but they dont show in list. From text doesnt appear though I am moderator (`roger@budgetapp.com`). still no from text. Would be nice to see your name or email when logged in.
+
+**Answer:** Register/login needed emulator or real Auth config and matching API key. New budgets were hidden, so they only listed for owner/moderator once ACL/list filters were correct. From-text is shown when the server treats you as moderator (`MODERATOR_EMAIL`) or `canUseFromText`; the header later showed the signed-in email.
+
+## 28 · Moderator delete users; token worry; env email; where is data
+
+moderator should be able to delete other users (their budgets will also be deleted). am i running out of tokens? changed moderator email to moderator@budgetapp.com, now I cant see other users. where is budget data stored now? no actual persistence locally — will Cloud persist? make the name and sign out header more distinct.
+
+**Answer:** Moderator Home got Delete user (not self), which removes the profile and owned budgets. The stuck chat was context-window, not empty subscription tokens. Household listing follows the current `MODERATOR_EMAIL` after restart. Live data is Firestore (emulator locally, durable on GCP); the header bar was made more distinct.
+
+## 29 · Ready to publish? Docker vs Cloud Build
+
+so is this app ready to publish to google cloud? just short answer. anything uncommitted still? docker desktop or engine? will I need docker at all to deploy?
+
+**Answer:** Code/runbook were ready; billing, secrets, Auth domains, and a real web API key were still required. Working tree was clean (branch could be ahead of origin). Cloud Build builds the image in GCP, so local Docker is optional.
+
+## 30 · Cloud Build, billing, IAM, deploy commands
+
+cloudbuild.yaml missing values — project budget-app-508906, what is _repo? next command `gcloud builds submit …`? Billing account not found. Enable Cloud Build API y/N? PERMISSION_DENIED for herlin.roger@gmail.com. ROLE roles/owner. build SUCCESS. print the actual commands. really run the printf secret commands? I got the URL — Firebase console next? /api/health returned {"ok":true}.
+
+**Answer:** `_REPO` is already `budgetapp`; project id is the `--project` flag. Link billing, enable APIs, then Owner can submit once Cloud Build’s SA has been granted. After a successful image, create SA + secrets and `gcloud run deploy`; `printf` pipes secret values into Secret Manager. Health `{"ok":true}` only proves the container is up.
+
+## 31 · Cloud Run register fails
+
+login/register page loads, but registering doesnt work: Could not sign in. /api/config says apiKey YOUR_WEB_API_KEY. should Gemini be set the same way? how can I check gemini api key is set?
+
+**Answer:** Cloud Run still had the placeholder web API key; update the service env `FIREBASE_WEB_API_KEY` to the Firebase Web key and add the `*.run.app` authorized domain. Gemini and moderator email stay in Secret Manager, not `--update-env-vars`. List secret versions and `gcloud run services describe` to confirm `GEMINI_API_KEY` is mapped — do not print the key.
+
+## 32 · This file (update)
+
+can you document all my prompts in @prompts.md with a short version of your replies
+
+**Answer:** This file was extended with every later user prompt from the project chats (From-text, restyle, auth/Firestore, local setup, Cloud Run). Repeated TDD `@prompts.md` blocks stay in §6; system “briefly inform” jobs are still omitted. Each **Answer** is a short three-sentence summary.

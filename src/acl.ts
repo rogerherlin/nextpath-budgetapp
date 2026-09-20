@@ -1,4 +1,4 @@
-import type { Actor, Budget, GrantRole, ViewerRelation } from "./types";
+import type { Actor, Budget, GrantRole, UserProfile, ViewerRelation } from "./types";
 
 const GRANT_ROLES: readonly GrantRole[] = ["see", "browse", "edit"];
 
@@ -78,4 +78,46 @@ export function viewerRelation(actor: Actor, budget: Budget): ViewerRelation {
     return role;
   }
   return "public";
+}
+
+export type BudgetAction = "read" | "write" | "delete" | "share";
+
+export type AccessDecision =
+  | { ok: true }
+  | { ok: false; status: 403 | 404; error: "Not found." | "Not allowed." };
+
+export function actorFromVerifiedSession(
+  profile: UserProfile,
+  isModerator: boolean,
+): Actor {
+  return { profile, isModerator };
+}
+
+export function decideBudgetAccess(
+  actor: Actor,
+  budget: Budget | null,
+  action: BudgetAction,
+): AccessDecision {
+  if (budget === null) {
+    return { ok: false, status: 404, error: "Not found." };
+  }
+  if (action === "read") {
+    if (canRead(actor, budget)) {
+      return { ok: true };
+    }
+    return { ok: false, status: 404, error: "Not found." };
+  }
+  if (!canRead(actor, budget)) {
+    return { ok: false, status: 404, error: "Not found." };
+  }
+  const allowed =
+    action === "write"
+      ? canWrite(actor, budget)
+      : action === "delete"
+        ? canDelete(actor, budget)
+        : canManageSharing(actor, budget);
+  if (!allowed) {
+    return { ok: false, status: 403, error: "Not allowed." };
+  }
+  return { ok: true };
 }

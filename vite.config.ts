@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
 import { defineConfig, type Plugin } from "vitest/config";
 import { applyEnvFile } from "./src/envFile";
+import { AgentMemoryStore } from "./src/agentMemory";
 import { dispatchHttpRequest } from "./src/httpDispatch";
+import { MAX_REQUEST_BYTES } from "./src/serverAccess";
 import { isModeratorEmail } from "./src/acl";
 import { migrateJsonIfNeeded } from "./src/migrate";
 import { APP_BUDGETS_FILE } from "./src/paths";
@@ -12,11 +14,25 @@ import type { AppRepo } from "./src/repo";
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let size = 0;
+    let settled = false;
     req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_REQUEST_BYTES) {
+        if (!settled) {
+          settled = true;
+          resolve("x".repeat(MAX_REQUEST_BYTES + 1));
+        }
+        req.resume();
+        return;
+      }
       chunks.push(chunk);
     });
     req.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf8"));
+      if (!settled) {
+        settled = true;
+        resolve(Buffer.concat(chunks).toString("utf8"));
+      }
     });
     req.on("error", reject);
   });
@@ -24,6 +40,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 function storeApiPlugin(): Plugin {
   let repo: AppRepo | undefined;
+  const agentMemory = new AgentMemoryStore();
   let migrated = false;
   return {
     name: "budget-store-api",
@@ -77,6 +94,7 @@ function storeApiPlugin(): Plugin {
               process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "",
             verifyIdToken,
             deleteUser: deleteAuthUser,
+            agentMemory,
           });
           const outgoing = res as ServerResponse;
           outgoing.statusCode = result.status;

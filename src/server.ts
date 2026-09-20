@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
+import { AgentMemoryStore } from "./agentMemory";
 import { applyEnvFile } from "./envFile";
 import {
   createAppRepo,
@@ -10,6 +11,7 @@ import {
   dispatchHttpRequest,
   listenPort,
 } from "./httpDispatch";
+import { MAX_REQUEST_BYTES } from "./serverAccess";
 import { isModeratorEmail } from "./acl";
 import { migrateJsonIfNeeded } from "./migrate";
 import { APP_BUDGETS_FILE } from "./paths";
@@ -25,11 +27,25 @@ applyEnvFile();
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let size = 0;
+    let settled = false;
     req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_REQUEST_BYTES) {
+        if (!settled) {
+          settled = true;
+          resolve("x".repeat(MAX_REQUEST_BYTES + 1));
+        }
+        req.resume();
+        return;
+      }
       chunks.push(chunk);
     });
     req.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf8"));
+      if (!settled) {
+        settled = true;
+        resolve(Buffer.concat(chunks).toString("utf8"));
+      }
     });
     req.on("error", reject);
   });
@@ -38,6 +54,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 const distDir = defaultDistDir();
 const port = listenPort();
 const repo = createAppRepo();
+const agentMemory = new AgentMemoryStore();
 const web = readFirebaseWebConfig();
 const moderatorEmail = readModeratorEmail();
 
@@ -70,6 +87,7 @@ const server = createServer((req, res) => {
       firebaseAuthEmulatorHost: readFirebaseAuthEmulatorHost(),
       verifyIdToken,
       deleteUser: deleteAuthUser,
+      agentMemory,
     });
     res.writeHead(result.status, result.headers);
     res.end(result.body);

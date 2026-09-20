@@ -1,12 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import {
-  canManageSharing,
-  canRead,
+  actorFromVerifiedSession,
   canUseFromText,
-  canWrite,
+  decideBudgetAccess,
   isModeratorEmail,
 } from "./acl";
+import { AgentMemoryStore } from "./agentMemory";
+import { executeAgentRun } from "./agentTools";
+import {
+  AGENT_MAX_MS,
+  MAX_REQUEST_BYTES,
+  redactSecrets,
+} from "./serverAccess";
 import {
   createSdkCaller,
   handleSuggestEntries,
@@ -32,6 +38,8 @@ import {
 } from "./repo";
 import type { Actor, Budget, Category, DateParts, Entry, Grant, GrantRole, UserProfile } from "./types";
 
+export { AgentMemoryStore };
+
 export type HttpDispatchResult = {
   status: number;
   headers: Record<string, string>;
@@ -56,9 +64,14 @@ export type HttpDispatchInput = {
   geminiCaller?: GeminiCaller;
   createId?: () => string;
   nowIso?: () => string;
+  agentMemory?: AgentMemoryStore;
+  nowMs?: () => number;
+  maxAgentMs?: number;
 };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+const defaultAgentMemory = new AgentMemoryStore();
 
 function jsonResult(status: number, body: string): HttpDispatchResult {
   return { status, headers: JSON_HEADERS, body };
@@ -168,7 +181,7 @@ function actorFrom(
   profile: UserProfile,
   isModerator: boolean,
 ): Actor {
-  return { profile, isModerator };
+  return actorFromVerifiedSession(profile, isModerator);
 }
 
 async function maybeDeleteOrphan(
@@ -473,14 +486,9 @@ async function dispatchApi(
   if (budgetVis !== null && input.method === "PATCH") {
     const id = budgetVis[1] ?? "";
     const existing = await repo.getBudgetDoc(id);
-    if (existing === null) {
-      return errorResult(404, "Not found.");
-    }
-    if (!canManageSharing(actor, existing)) {
-      if (canRead(actor, existing)) {
-        return errorResult(403, "Not allowed.");
-      }
-      return errorResult(404, "Not found.");
+    const access = decideBudgetAccess(actor, existing, "share");
+    if (!access.ok) {
+      return errorResult(access.status, access.error);
     }
     const data = asRecord(parseJsonBody(input.body));
     const visibility = data === null ? undefined : data.visibility;
@@ -501,14 +509,9 @@ async function dispatchApi(
   if (budgetGrants !== null && input.method === "PUT") {
     const id = budgetGrants[1] ?? "";
     const existing = await repo.getBudgetDoc(id);
-    if (existing === null) {
-      return errorResult(404, "Not found.");
-    }
-    if (!canManageSharing(actor, existing)) {
-      if (canRead(actor, existing)) {
-        return errorResult(403, "Not allowed.");
-      }
-      return errorResult(404, "Not found.");
+    const share = decideBudgetAccess(actor, existing, "share");
+    if (!share.ok) {
+      return errorResult(share.status, share.error);
     }
     const data = asRecord(parseJsonBody(input.body));
     const grants = data === null ? null : parseGrants(data.grants);
@@ -592,11 +595,9 @@ async function dispatchApi(
     const budgetId =
       data !== null && typeof data.budgetId === "string" ? data.budgetId : "";
     const budget = budgetId === "" ? null : await repo.getBudgetDoc(budgetId);
-    if (budget === null || !canWrite(actor, budget)) {
-      if (budget !== null && canRead(actor, budget)) {
-        return errorResult(403, "Not allowed.");
-      }
-      return errorResult(404, "Not found.");
+    const write = decideBudgetAccess(actor, budget, "write");
+    if (!write.ok) {
+      return errorResult(write.status, write.error);
     }
     const result = await handleSuggestEntries(
       input.body,
@@ -606,12 +607,39 @@ async function dispatchApi(
     return jsonResult(result.status, JSON.stringify(result.body));
   }
 
+  if (input.pathname === "/api/agent/run") {
+    if (input.method !== "POST") {
+      return errorResult(404, "Not found.");
+    }
+    const data = asRecord(parseJsonBody(input.body));
+    const secrets = [input.geminiApiKey].filter((item) => item !== "");
+    const run = await executeAgentRun({
+      actor,
+      repo,
+      memory: input.agentMemory ?? defaultAgentMemory,
+      rawSteps: data === null ? undefined : data.steps,
+      nowMs: input.nowMs ?? Date.now,
+      maxMs: input.maxAgentMs ?? AGENT_MAX_MS,
+      secrets,
+    });
+    if ("error" in run) {
+      return errorResult(run.status, run.error);
+    }
+    return jsonResult(
+      200,
+      redactSecrets(JSON.stringify({ steps: run.steps }), secrets),
+    );
+  }
+
   return errorResult(404, "Not found.");
 }
 
 export async function dispatchHttpRequest(
   input: HttpDispatchInput,
 ): Promise<HttpDispatchResult> {
+  if (Buffer.byteLength(input.body, "utf8") > MAX_REQUEST_BYTES) {
+    return errorResult(413, "Request too large.");
+  }
   const api = await dispatchApi(input);
   if (api !== null) {
     return api;

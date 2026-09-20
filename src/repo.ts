@@ -1,12 +1,4 @@
-import {
-  canDelete,
-  canListSummary,
-  canManageSharing,
-  canRead,
-  canWrite,
-  isModeratorEmail,
-  viewerRelation,
-} from "./acl";
+import { canListSummary, decideBudgetAccess, isModeratorEmail, viewerRelation } from "./acl";
 import {
   copyBudget,
   createBudget,
@@ -162,7 +154,8 @@ export async function getBudget(
   id: string,
 ): Promise<RepoGetResult> {
   const budget = await repo.getBudgetDoc(id);
-  if (budget === null || !canRead(actor, budget)) {
+  const access = decideBudgetAccess(actor, budget, "read");
+  if (!access.ok || budget === null) {
     return { ok: false, error: "Not found." };
   }
   return { ok: true, value: budget };
@@ -199,11 +192,9 @@ export async function deleteBudgetForActor(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const existing = await repo.getBudgetDoc(id);
-  if (existing === null || !canRead(actor, existing)) {
-    return { ok: false, error: "Not found." };
-  }
-  if (!canDelete(actor, existing)) {
-    return { ok: false, error: "Not allowed." };
+  const access = decideBudgetAccess(actor, existing, "delete");
+  if (!access.ok) {
+    return { ok: false, error: access.error };
   }
   const all = await repo.listBudgetDocs();
   resetStore(all);
@@ -222,8 +213,9 @@ export async function copyBudgetForActor(
   id: string,
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string }> {
   const source = await repo.getBudgetDoc(id);
-  if (source === null || !canRead(actor, source)) {
-    return { ok: false, error: "Not found." };
+  const readable = decideBudgetAccess(actor, source, "read");
+  if (!readable.ok) {
+    return { ok: false, error: readable.error };
   }
   const all = await repo.listBudgetDocs();
   resetStore(all);
@@ -254,18 +246,17 @@ export async function setVisibilityForActor(
   visibility: Visibility,
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string; status: number }> {
   const budget = await repo.getBudgetDoc(id);
-  if (budget === null) {
-    return { ok: false, error: "Not found.", status: 404 };
+  const access = decideBudgetAccess(actor, budget, "share");
+  if (!access.ok || budget === null) {
+    return {
+      ok: false,
+      error: access.ok ? "Not found." : access.error,
+      status: access.ok ? 404 : access.status,
+    };
   }
-  if (canManageSharing(actor, budget)) {
-    const next = { ...budget, visibility };
-    await repo.saveBudget(next);
-    return { ok: true, budget: next };
-  }
-  if (canRead(actor, budget)) {
-    return { ok: false, error: "Not allowed.", status: 403 };
-  }
-  return { ok: false, error: "Not found.", status: 404 };
+  const next = { ...budget, visibility };
+  await repo.saveBudget(next);
+  return { ok: true, budget: next };
 }
 
 export async function setGrantsForActor(
@@ -275,14 +266,13 @@ export async function setGrantsForActor(
   grants: Grant[],
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string; status: number }> {
   const budget = await repo.getBudgetDoc(id);
-  if (budget === null) {
-    return { ok: false, error: "Not found.", status: 404 };
-  }
-  if (!canManageSharing(actor, budget)) {
-    if (canRead(actor, budget)) {
-      return { ok: false, error: "Not allowed.", status: 403 };
-    }
-    return { ok: false, error: "Not found.", status: 404 };
+  const access = decideBudgetAccess(actor, budget, "share");
+  if (!access.ok || budget === null) {
+    return {
+      ok: false,
+      error: access.ok ? "Not found." : access.error,
+      status: access.ok ? 404 : access.status,
+    };
   }
   const profiles = await repo.listProfiles();
   const ids = new Set(profiles.map((profile) => profile.id));
@@ -314,11 +304,13 @@ export async function saveWritableBudget(
   budget: Budget,
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string; status: number }> {
   const existing = await repo.getBudgetDoc(id);
-  if (existing === null || !canRead(actor, existing)) {
-    return { ok: false, error: "Not found.", status: 404 };
-  }
-  if (!canWrite(actor, existing)) {
-    return { ok: false, error: "Not allowed.", status: 403 };
+  const access = decideBudgetAccess(actor, existing, "write");
+  if (!access.ok || existing === null) {
+    return {
+      ok: false,
+      error: access.ok ? "Not found." : access.error,
+      status: access.ok ? 404 : access.status,
+    };
   }
   const next: Budget = {
     ...budget,

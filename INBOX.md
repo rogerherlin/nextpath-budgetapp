@@ -8,3 +8,4 @@
 - Browser persist PUT is fire-and-forget; a failed save is not shown to the user.
 - `updateBudget` rejects an empty name, but lifecycle.md has no named AC or test for that.
 - AGENTS.md Commands still list only `npm start` / test / tsc; `build` and `serve` exist now.
+- `budgets.ts` still uses `FALLBACK_ACTOR` (moderator `local`) when copy/delete/create are called without an actor.

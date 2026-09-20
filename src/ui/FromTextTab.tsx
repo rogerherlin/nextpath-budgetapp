@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { getAuthToken } from "../authToken";
+import { clientFetch } from "../clientFetch";
 import { listBudgets } from "../budgets";
 import {
   applySuggestedItems,
@@ -37,7 +38,7 @@ export function FromTextTab({ budgetId }: { budgetId: string }) {
       if (token !== null && token !== "") {
         headers.Authorization = `Bearer ${token}`;
       }
-      const response = await fetch("/api/suggest-entries", {
+      const response = await clientFetch("/api/suggest-entries", {
         method: "POST",
         headers,
         body: JSON.stringify({

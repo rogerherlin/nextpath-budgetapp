@@ -5,7 +5,8 @@ import {
   canWrite,
 } from "../acl";
 import { getAuthToken } from "../authToken";
-import { listBudgets, updateBudget } from "../budgets";
+import { clientFetch } from "../clientFetch";
+import { listBudgets, mapBudget, updateBudget } from "../budgets";
 import { formatDate, parseDate } from "../dates";
 import { formatMoney, parseOptionalMoney } from "../money";
 import type {
@@ -100,7 +101,7 @@ export function BudgetScreen({
         if (token !== null && token !== "") {
           headers.Authorization = `Bearer ${token}`;
         }
-        const response = await fetch("/api/users", { headers });
+        const response = await clientFetch("/api/users", { headers });
         const data: unknown = await response.json();
         if (
           !cancelled &&
@@ -156,11 +157,13 @@ export function BudgetScreen({
   }
 
   async function saveVisibility(visibility: Visibility) {
+    const previous = open.visibility;
+    mapBudget(budgetId, (current) => ({ ...current, visibility }));
     const token = await getAuthToken();
     if (token === null || token === "") {
       return;
     }
-    await fetch(`/api/budgets/${budgetId}/visibility`, {
+    const response = await clientFetch(`/api/budgets/${budgetId}/visibility`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -168,14 +171,19 @@ export function BudgetScreen({
       },
       body: JSON.stringify({ visibility }),
     });
+    if (!response.ok) {
+      mapBudget(budgetId, (current) => ({ ...current, visibility: previous }));
+    }
   }
 
   async function saveGrants(next: Grant[]) {
+    const previous = open.grants;
+    mapBudget(budgetId, (current) => ({ ...current, grants: next }));
     const token = await getAuthToken();
     if (token === null || token === "") {
       return;
     }
-    await fetch(`/api/budgets/${budgetId}/grants`, {
+    const response = await clientFetch(`/api/budgets/${budgetId}/grants`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -183,6 +191,9 @@ export function BudgetScreen({
       },
       body: JSON.stringify({ grants: next }),
     });
+    if (!response.ok) {
+      mapBudget(budgetId, (current) => ({ ...current, grants: previous }));
+    }
   }
 
   function grantValue(userId: string): GrantRole | "none" {

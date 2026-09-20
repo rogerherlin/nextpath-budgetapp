@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   loadFirebaseAuth,
   onProfileReady,
@@ -7,11 +7,22 @@ import {
   type ClientUser,
 } from "./authClient";
 import { setAuthTokenGetter } from "./authToken";
+import { clientFetch } from "./clientFetch";
 import { hydrateFromServer } from "./clientStore";
 import type { Actor, BudgetSummary, MeProfile, UserProfile } from "./types";
 import { BudgetScreen } from "./ui/BudgetScreen";
+import { BusyOverlay } from "./ui/BusyOverlay";
 import { HomeScreen } from "./ui/HomeScreen";
 import { LoginScreen } from "./ui/LoginScreen";
+
+function withBusyOverlay(page: ReactNode) {
+  return (
+    <>
+      <BusyOverlay />
+      {page}
+    </>
+  );
+}
 
 function actorFromMe(me: MeProfile): Actor {
   return {
@@ -97,7 +108,7 @@ export function App() {
     setAuthTokenGetter(() => current.getIdToken());
     let cancelled = false;
     async function loadProfile() {
-      const meResponse = await fetch("/api/me", {
+      const meResponse = await clientFetch("/api/me", {
         headers: { Authorization: `Bearer ${await current.getIdToken()}` },
       });
       const meData: unknown = await meResponse.json();
@@ -120,7 +131,7 @@ export function App() {
       }
       setSummaries(hydrated.summaries);
       if (meData.isModerator) {
-        const adminResponse = await fetch("/api/admin/users", {
+        const adminResponse = await clientFetch("/api/admin/users", {
           headers: { Authorization: `Bearer ${await current.getIdToken()}` },
         });
         const adminData: unknown = await adminResponse.json();
@@ -151,30 +162,30 @@ export function App() {
   }, [user]);
 
   if (user === undefined) {
-    return <main />;
+    return withBusyOverlay(<main />);
   }
 
   if (user === null || me === null || !ready) {
-    return (
+    return withBusyOverlay(
       <main>
         <LoginScreen />
-      </main>
+      </main>,
     );
   }
 
   if (loadError) {
-    return (
+    return withBusyOverlay(
       <main>
         <h1>Budgets</h1>
         <p>{loadError}</p>
-      </main>
+      </main>,
     );
   }
 
   const actor = actorFromMe(me);
 
   if (budgetId) {
-    return (
+    return withBusyOverlay(
       <main>
         <SessionBar me={me} />
         <BudgetScreen
@@ -182,11 +193,11 @@ export function App() {
           me={me}
           onBack={() => setBudgetId(null)}
         />
-      </main>
+      </main>,
     );
   }
 
-  return (
+  return withBusyOverlay(
     <main>
       <SessionBar me={me} />
       <h1>Budgets</h1>
@@ -199,11 +210,11 @@ export function App() {
         onOpen={setBudgetId}
         onDeleteUser={async (userId) => {
           const token = await user.getIdToken();
-          await fetch(`/api/admin/users/${userId}`, {
+          await clientFetch(`/api/admin/users/${userId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
           });
-          const adminResponse = await fetch("/api/admin/users", {
+          const adminResponse = await clientFetch("/api/admin/users", {
             headers: { Authorization: `Bearer ${token}` },
           });
           const adminData: unknown = await adminResponse.json();
@@ -223,7 +234,7 @@ export function App() {
         }}
         onToggleFromText={async (userId, canUse) => {
           const token = await user.getIdToken();
-          await fetch(`/api/admin/users/${userId}`, {
+          await clientFetch(`/api/admin/users/${userId}`, {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
@@ -231,7 +242,7 @@ export function App() {
             },
             body: JSON.stringify({ canUseFromText: canUse }),
           });
-          const adminResponse = await fetch("/api/admin/users", {
+          const adminResponse = await clientFetch("/api/admin/users", {
             headers: { Authorization: `Bearer ${token}` },
           });
           const adminData: unknown = await adminResponse.json();
@@ -246,6 +257,6 @@ export function App() {
           }
         }}
       />
-    </main>
+    </main>,
   );
 }

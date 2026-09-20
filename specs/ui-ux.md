@@ -47,7 +47,7 @@ Left-aligned card, comfortable spacing. Keyboard: tab through fields; primary ac
 ## Feedback
 
 - Field errors appear next to the field as the spec’s exact strings (`Name is required.`, `The name is already in use.`, `Enter a valid amount.`, `Enter a date as dd.mm.yyyy.`, `Select a category.`, `Enter a description.`, `Select income or expense.`, `Could not suggest entries.`, `Gemini API key is missing.`).
-- No toasts. No loading spinners unless a save takes visibly long (MVP: ignore).
+- No toasts. Client network work (browser `fetch` and Firebase Auth sign-in/register/sign-out) shows a visible spinner overlay (`.busy-overlay` / `.spinner`, status `Loading.`) only after **400ms** of continuous in-flight work; hide it as soon as the last call finishes.
 - Amounts and dates always displayed with `formatMoney` / `formatDate`.
 
 ## Out of scope

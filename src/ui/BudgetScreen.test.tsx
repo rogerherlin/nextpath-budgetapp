@@ -1,8 +1,16 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resetStore } from "../budgets";
+import { setAuthTokenGetter } from "../authToken";
+import { listBudgets, resetStore } from "../budgets";
 import type { Budget, MeProfile } from "../types";
 import { BudgetScreen } from "./BudgetScreen";
 
@@ -38,6 +46,7 @@ function aliceMe(canUseFromText: boolean): MeProfile {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  setAuthTokenGetter(async () => null);
 });
 
 describe("AC56: From-text tab hidden without permission", () => {
@@ -158,5 +167,67 @@ describe("AC59: Sharing UI hidden for edit grant", () => {
     );
     expect(screen.queryByLabelText("Visibility")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Sharing" })).toBeNull();
+  });
+});
+
+describe("Visibility and sharing selects stay on the chosen value", () => {
+  it("shows Public after Visibility is changed to public", async () => {
+    setAuthTokenGetter(async () => "tok-alice");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input);
+        if (url === "/api/users") {
+          return {
+            ok: true,
+            json: async () => ({ users: [] }),
+          };
+        }
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+    resetStore([budgetFixture()]);
+    render(<BudgetScreen budgetId="b1" me={aliceMe(false)} />);
+    const visibility = screen.getByLabelText("Visibility") as HTMLSelectElement;
+    expect(visibility.value).toBe("hidden");
+    fireEvent.change(visibility, { target: { value: "public" } });
+    await waitFor(() => expect(visibility.value).toBe("public"));
+    expect(listBudgets()[0]?.visibility).toBe("public");
+  });
+
+  it("shows Browse after Bob’s sharing role is changed", async () => {
+    setAuthTokenGetter(async () => "tok-alice");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input);
+        if (url === "/api/users") {
+          return {
+            ok: true,
+            json: async () => ({
+              users: [
+                {
+                  id: "uid-alice",
+                  email: "alice@example.com",
+                  displayName: "Alice",
+                },
+                { id: "uid-bob", email: "bob@example.com", displayName: "Bob" },
+              ],
+            }),
+          };
+        }
+        return { ok: true, json: async () => ({}) };
+      }),
+    );
+    resetStore([budgetFixture()]);
+    render(<BudgetScreen budgetId="b1" me={aliceMe(false)} />);
+    await waitFor(() => expect(screen.getByLabelText("Bob")).toBeTruthy());
+    const bob = screen.getByLabelText("Bob") as HTMLSelectElement;
+    expect(bob.value).toBe("none");
+    fireEvent.change(bob, { target: { value: "browse" } });
+    await waitFor(() => expect(bob.value).toBe("browse"));
+    expect(listBudgets()[0]?.grants).toEqual([
+      { userId: "uid-bob", role: "browse" },
+    ]);
   });
 });

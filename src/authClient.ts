@@ -1,4 +1,6 @@
 import { getApps, initializeApp } from "firebase/app";
+import { trackBusy } from "./busy";
+import { clientFetch } from "./clientFetch";
 import {
   connectAuthEmulator,
   createUserWithEmailAndPassword,
@@ -24,7 +26,7 @@ function mapUser(user: User): ClientUser {
 }
 
 export async function loadFirebaseAuth(): Promise<void> {
-  const response = await fetch("/api/config");
+  const response = await clientFetch("/api/config");
   const data: unknown = await response.json();
   if (
     !response.ok ||
@@ -71,23 +73,21 @@ export async function signInWithPassword(
   email: string,
   password: string,
 ): Promise<void> {
-  await signInWithEmailAndPassword(getAuth(), email, password);
+  await trackBusy(signInWithEmailAndPassword(getAuth(), email, password));
 }
 
 export async function registerWithPassword(
   email: string,
   password: string,
 ): Promise<ClientUser> {
-  const credential = await createUserWithEmailAndPassword(
-    getAuth(),
-    email,
-    password,
+  const credential = await trackBusy(
+    createUserWithEmailAndPassword(getAuth(), email, password),
   );
   return mapUser(credential.user);
 }
 
 export async function signOutUser(): Promise<void> {
-  await signOut(getAuth());
+  await trackBusy(signOut(getAuth()));
 }
 
 const profileReadyListeners = new Set<() => void>();

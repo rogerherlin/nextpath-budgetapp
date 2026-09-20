@@ -4,6 +4,7 @@ import {
   registerWithPassword,
   signInWithPassword,
 } from "../authClient";
+import { clientFetch } from "../clientFetch";
 
 function errorFromBody(data: unknown, fallback: string): string {
   if (
@@ -38,7 +39,7 @@ export function LoginScreen() {
     try {
       const user = await registerWithPassword(email, password);
       const token = await user.getIdToken();
-      const response = await fetch("/api/register", {
+      const response = await clientFetch("/api/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

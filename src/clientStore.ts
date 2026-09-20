@@ -1,4 +1,5 @@
 import { listBudgets, resetStore, type CreateBudgetInput } from "./budgets";
+import { clientFetch } from "./clientFetch";
 import { setPersist } from "./persist";
 import type { Budget, BudgetSummary } from "./types";
 
@@ -22,7 +23,7 @@ async function persistBudgets(
     return;
   }
   for (const budget of listBudgets()) {
-    await fetch(`/api/budgets/${budget.id}`, {
+    await clientFetch(`/api/budgets/${budget.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -44,7 +45,7 @@ export async function hydrateFromServer(
   }
   let data: unknown;
   try {
-    const response = await fetch("/api/budgets", {
+    const response = await clientFetch("/api/budgets", {
       headers: { Authorization: `Bearer ${token}` },
     });
     data = await response.json();
@@ -68,7 +69,7 @@ export async function hydrateFromServer(
   );
   const budgets: Budget[] = [];
   for (const item of readable) {
-    const response = await fetch(`/api/budgets/${item.id}`, {
+    const response = await clientFetch(`/api/budgets/${item.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
@@ -98,7 +99,7 @@ async function authorizedJson(
     return { ok: false, error: "Sign in required." };
   }
   try {
-    const response = await fetch(url, {
+    const response = await clientFetch(url, {
       ...init,
       headers: {
         "Content-Type": "application/json",

@@ -323,6 +323,26 @@ export async function saveWritableBudget(
   return { ok: true, budget: next };
 }
 
+async function removeHouseholdUser(
+  repo: AppRepo,
+  id: string,
+  deleteAuthUser: (uid: string) => Promise<void>,
+): Promise<void> {
+  const budgets = await repo.listBudgetDocs();
+  for (const budget of budgets) {
+    if (budget.ownerId === id) {
+      await repo.removeBudget(budget.id);
+      continue;
+    }
+    const grants = budget.grants.filter((grant) => grant.userId !== id);
+    if (grants.length !== budget.grants.length) {
+      await repo.saveBudget({ ...budget, grants });
+    }
+  }
+  await repo.removeProfile(id);
+  await deleteAuthUser(id);
+}
+
 export async function deleteHouseholdUser(
   repo: AppRepo,
   actor: Actor,
@@ -343,19 +363,19 @@ export async function deleteHouseholdUser(
   ) {
     return { ok: false, error: "Not allowed.", status: 403 };
   }
-  const budgets = await repo.listBudgetDocs();
-  for (const budget of budgets) {
-    if (budget.ownerId === id) {
-      await repo.removeBudget(budget.id);
-      continue;
-    }
-    const grants = budget.grants.filter((grant) => grant.userId !== id);
-    if (grants.length !== budget.grants.length) {
-      await repo.saveBudget({ ...budget, grants });
-    }
+  await removeHouseholdUser(repo, id, deleteAuthUser);
+  return { ok: true };
+}
+
+export async function deleteOwnAccount(
+  repo: AppRepo,
+  actor: Actor,
+  deleteAuthUser: (uid: string) => Promise<void>,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (actor.isModerator) {
+    return { ok: false, error: "Not allowed.", status: 403 };
   }
-  await repo.removeProfile(id);
-  await deleteAuthUser(id);
+  await removeHouseholdUser(repo, actor.profile.id, deleteAuthUser);
   return { ok: true };
 }
 

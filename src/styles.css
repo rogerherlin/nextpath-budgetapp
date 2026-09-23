@@ -239,6 +239,19 @@ button:focus {
   font-size: 0.85rem;
 }
 
+.session-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.budget-row__owner {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 450;
+}
+
 .session-bar .button {
   flex-shrink: 0;
   border-color: var(--accent);

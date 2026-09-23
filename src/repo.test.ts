@@ -1,13 +1,15 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { persistAdapterName } from "./secrets";
 import { migrateJsonIfNeeded } from "./migrate";
 import {
   copyBudgetForActor,
   createBudgetForActor,
   deleteBudgetForActor,
+  deleteHouseholdUser,
+  deleteOwnAccount,
   getBudget,
   listBudgetSummaries,
   MemoryRepo,
@@ -279,5 +281,72 @@ describe("AC12: File adapter is tests-only", () => {
     } else {
       process.env.BUDGETAPP_MEMORY_REPO = previous;
     }
+  });
+});
+
+describe("account-settings: self-delete removes owned budgets and strips grants", () => {
+  it("account-settings: self-delete removes owned budgets and strips grants", async () => {
+    const repo = new MemoryRepo();
+    await repo.saveProfile(alice.profile);
+    await repo.saveProfile(bob.profile);
+    await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+    await repo.saveBudget(emptyBudget("b2", "Two", "uid-alice"));
+    await repo.saveBudget(
+      emptyBudget("b3", "BobBud", "uid-bob", {
+        grants: [{ userId: "uid-alice", role: "edit" }],
+      }),
+    );
+    const deleteUser = vi.fn(async () => {});
+    const result = await deleteOwnAccount(repo, alice, deleteUser);
+    expect(result).toEqual({ ok: true });
+    expect(await repo.getProfile("uid-alice")).toBeNull();
+    expect(await repo.getBudgetDoc("b1")).toBeNull();
+    expect(await repo.getBudgetDoc("b2")).toBeNull();
+    expect((await repo.getBudgetDoc("b3"))?.grants).toEqual([]);
+    expect(deleteUser).toHaveBeenCalledTimes(1);
+    expect(deleteUser).toHaveBeenCalledWith("uid-alice");
+  });
+});
+
+describe("account-settings: moderator self-delete refuses before any removal", () => {
+  it("account-settings: moderator self-delete refuses before any removal", async () => {
+    const repo = new MemoryRepo();
+    await repo.saveProfile(moderator.profile);
+    await repo.saveBudget(emptyBudget("b1", "ModBud", "uid-mod"));
+    const deleteUser = vi.fn(async () => {});
+    const result = await deleteOwnAccount(repo, moderator, deleteUser);
+    expect(result).toEqual({ ok: false, error: "Not allowed.", status: 403 });
+    expect(await repo.getProfile("uid-mod")).toEqual(moderator.profile);
+    expect(await repo.getBudgetDoc("b1")).not.toBeNull();
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("account-settings: moderator delete of another user uses the shared cascade", () => {
+  it("account-settings: moderator delete of another user uses the shared cascade", async () => {
+    const repo = new MemoryRepo();
+    await repo.saveProfile(alice.profile);
+    await repo.saveProfile(bob.profile);
+    await repo.saveProfile(moderator.profile);
+    await repo.saveBudget(emptyBudget("b1", "Summer", "uid-alice"));
+    await repo.saveBudget(
+      emptyBudget("b3", "BobBud", "uid-bob", {
+        grants: [{ userId: "uid-alice", role: "edit" }],
+      }),
+    );
+    const deleteUser = vi.fn(async () => {});
+    const result = await deleteHouseholdUser(
+      repo,
+      moderator,
+      "uid-alice",
+      "mod@example.com",
+      deleteUser,
+    );
+    expect(result).toEqual({ ok: true });
+    expect(await repo.getProfile("uid-alice")).toBeNull();
+    expect(await repo.getBudgetDoc("b1")).toBeNull();
+    expect((await repo.getBudgetDoc("b3"))?.grants).toEqual([]);
+    expect(deleteUser).toHaveBeenCalledTimes(1);
+    expect(deleteUser).toHaveBeenCalledWith("uid-alice");
   });
 });

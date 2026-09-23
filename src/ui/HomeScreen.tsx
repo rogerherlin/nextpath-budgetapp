@@ -80,13 +80,19 @@ export function HomeScreen({
     id: string;
     name: string;
     viewerRelation: ViewerRelation;
-  }> =
-    summaries ??
-    listBudgets().map((budget) => ({
-      id: budget.id,
-      name: budget.name,
-      viewerRelation: "owner",
-    }));
+    ownerDisplayName?: string;
+  }> = summaries
+    ? summaries.map((budget) => ({
+        id: budget.id,
+        name: budget.name,
+        viewerRelation: budget.viewerRelation,
+        ownerDisplayName: budget.ownerDisplayName,
+      }))
+    : listBudgets().map((budget) => ({
+        id: budget.id,
+        name: budget.name,
+        viewerRelation: "owner",
+      }));
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -161,6 +167,9 @@ export function HomeScreen({
           {listed.map((budget) => (
             <li className="budget-row" key={budget.id}>
               <span className="budget-row__name">{budget.name}</span>
+              {budget.ownerDisplayName ? (
+                <span className="budget-row__owner">{budget.ownerDisplayName}</span>
+              ) : null}
               {summaries ? (
                 <span className="budget-row__badge">
                   {badgeLabel(budget.viewerRelation)}

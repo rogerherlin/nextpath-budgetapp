@@ -25,6 +25,7 @@ import {
   createBudgetForActor,
   deleteBudgetForActor,
   deleteHouseholdUser,
+  deleteOwnAccount,
   directoryUser,
   getBudget,
   isValidVisibility,
@@ -336,10 +337,43 @@ async function dispatchMe(
     }
     return errorResult(403, "Register first.");
   }
+  if (input.method === "PATCH") {
+    return dispatchPatchMe(input, session.profile, session.isModerator);
+  }
+  if (input.method === "DELETE") {
+    const result = await deleteOwnAccount(
+      input.repo,
+      actorFrom(session.profile, session.isModerator),
+      input.deleteUser,
+    );
+    if (!result.ok) {
+      return errorResult(result.status, result.error);
+    }
+    return jsonResult(200, JSON.stringify({ ok: true }));
+  }
   return jsonResult(
     200,
     JSON.stringify(mePayload(session.profile, session.isModerator)),
   );
+}
+
+async function dispatchPatchMe(
+  input: HttpDispatchInput,
+  profile: UserProfile,
+  isModerator: boolean,
+): Promise<HttpDispatchResult> {
+  const data = asRecord(parseJsonBody(input.body));
+  const rawName =
+    data !== null && typeof data.displayName === "string"
+      ? data.displayName
+      : "";
+  const displayName = rawName.trim();
+  if (displayName === "") {
+    return errorResult(400, "Display name is required.");
+  }
+  const next: UserProfile = { ...profile, displayName };
+  await input.repo.saveProfile(next);
+  return jsonResult(200, JSON.stringify(mePayload(next, isModerator)));
 }
 
 async function dispatchApi(
@@ -381,7 +415,12 @@ async function dispatchApi(
   if (input.pathname === "/api/register" && input.method === "POST") {
     return dispatchRegister(input);
   }
-  if (input.pathname === "/api/me" && input.method === "GET") {
+  if (
+    input.pathname === "/api/me" &&
+    (input.method === "GET" ||
+      input.method === "PATCH" ||
+      input.method === "DELETE")
+  ) {
     return dispatchMe(input);
   }
 

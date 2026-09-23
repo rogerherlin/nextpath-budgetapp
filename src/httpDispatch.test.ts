@@ -1513,3 +1513,245 @@ describe("POST /api/budgets creates as owner", () => {
     });
   });
 });
+
+describe("account-settings AC3: Rename trims and returns the me payload", () => {
+  it("account-settings AC3: Rename trims and returns the me payload", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const result = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ displayName: "  Ada  " }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(
+        JSON.stringify({
+          id: "uid-alice",
+          email: "alice@example.com",
+          displayName: "Ada",
+          canUseFromText: false,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          isModerator: false,
+        }),
+      );
+      const stored = await repo.getProfile("uid-alice");
+      expect(stored).toEqual({ ...ALICE, displayName: "Ada" });
+    });
+  });
+});
+
+describe("account-settings AC4: Blank display name is rejected", () => {
+  it("account-settings AC4: Blank display name is rejected", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const blank = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ displayName: "   " }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(blank.status).toBe(400);
+      expect(blank.body).toBe(
+        JSON.stringify({ error: "Display name is required." }),
+      );
+      expect((await repo.getProfile("uid-alice"))?.displayName).toBe("Alice");
+
+      const missing = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        body: JSON.stringify({}),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(missing.status).toBe(400);
+      expect(missing.body).toBe(
+        JSON.stringify({ error: "Display name is required." }),
+      );
+      expect((await repo.getProfile("uid-alice"))?.displayName).toBe("Alice");
+
+      const wrongType = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ displayName: 1 }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(wrongType.status).toBe(400);
+      expect(wrongType.body).toBe(
+        JSON.stringify({ error: "Display name is required." }),
+      );
+      expect((await repo.getProfile("uid-alice"))?.displayName).toBe("Alice");
+    });
+  });
+});
+
+describe("account-settings AC5: Extra profile fields in the body do not stick", () => {
+  it("account-settings AC5: Extra profile fields in the body do not stick", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const result = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        body: JSON.stringify({
+          displayName: "Ada",
+          canUseFromText: true,
+          email: "evil@example.com",
+          id: "uid-other",
+          isModerator: true,
+        }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(200);
+      const body = JSON.parse(result.body) as UserProfile & {
+        isModerator: boolean;
+      };
+      expect(body.displayName).toBe("Ada");
+      expect(body.canUseFromText).toBe(false);
+      expect(body.email).toBe("alice@example.com");
+      expect(body.id).toBe("uid-alice");
+      expect(body.isModerator).toBe(false);
+      const stored = await repo.getProfile("uid-alice");
+      expect(stored?.canUseFromText).toBe(false);
+      expect(stored?.email).toBe("alice@example.com");
+      expect(stored?.id).toBe("uid-alice");
+    });
+  });
+});
+
+describe("account-settings AC11: Self-delete removes owned budgets, strips grants, and deletes the Auth user", () => {
+  it("account-settings AC11: Self-delete removes owned budgets, strips grants, and deletes the Auth user", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(BOB);
+      await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+      await repo.saveBudget(emptyBudget("b2", "Two", "uid-alice"));
+      await repo.saveBudget(
+        emptyBudget("b3", "BobBud", "uid-bob", {
+          grants: [{ userId: "uid-alice", role: "edit" }],
+        }),
+      );
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/me",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(JSON.stringify({ ok: true }));
+      expect(await repo.getProfile("uid-alice")).toBeNull();
+      expect(await repo.getBudgetDoc("b1")).toBeNull();
+      expect(await repo.getBudgetDoc("b2")).toBeNull();
+      expect(await repo.getBudgetDoc("b3")).not.toBeNull();
+      expect((await repo.getBudgetDoc("b3"))?.grants).toEqual([]);
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-alice");
+    });
+  });
+});
+
+describe("account-settings AC15: Moderator cannot self-delete", () => {
+  it("account-settings AC15: Moderator cannot self-delete", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(MOD);
+      await repo.saveBudget(emptyBudget("b1", "ModBud", "uid-mod"));
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "DELETE",
+        pathname: "/api/me",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(JSON.stringify({ error: "Not allowed." }));
+      expect(await repo.getProfile("uid-mod")).toEqual(MOD);
+      expect(await repo.getBudgetDoc("b1")).not.toBeNull();
+      expect(deleteUser).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("account-settings AC16: Unauthenticated profile routes reject", () => {
+  it("account-settings AC16: Unauthenticated profile routes reject", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const patch = await dispatch({
+        method: "PATCH",
+        pathname: "/api/me",
+        body: JSON.stringify({ displayName: "Ada" }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(patch.status).toBe(401);
+      expect(patch.body).toBe(JSON.stringify({ error: "Sign in required." }));
+      const deleted = await dispatch({
+        method: "DELETE",
+        pathname: "/api/me",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(deleted.status).toBe(401);
+      expect(deleted.body).toBe(
+        JSON.stringify({ error: "Sign in required." }),
+      );
+      expect((await repo.getProfile("uid-alice"))?.displayName).toBe("Alice");
+    });
+  });
+});
+
+describe("account-settings AC17: Moderator delete of someone else is unchanged", () => {
+  it("account-settings AC17: Moderator delete of someone else is unchanged", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(MOD);
+      await repo.saveBudget(emptyBudget("b1", "Summer", "uid-alice"));
+      const deleteUser = vi.fn(async () => {});
+      const removed = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-alice",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(removed.status).toBe(200);
+      expect(removed.body).toBe(JSON.stringify({ ok: true }));
+      expect(await repo.getProfile("uid-alice")).toBeNull();
+      expect(await repo.getBudgetDoc("b1")).toBeNull();
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-alice");
+
+      const self = await dispatch({
+        method: "DELETE",
+        pathname: "/api/admin/users/uid-mod",
+        authorization: "Bearer mod",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(self.status).toBe(403);
+      expect(self.body).toBe(JSON.stringify({ error: "Not allowed." }));
+      expect(await repo.getProfile("uid-mod")).toEqual(MOD);
+    });
+  });
+});

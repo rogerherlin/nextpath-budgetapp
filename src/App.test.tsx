@@ -28,9 +28,11 @@ vi.mock("./authClient", () => ({
   }),
   onProfileReady: vi.fn(() => () => {}),
   notifyProfileReady: vi.fn(),
+  changePassword: vi.fn(),
+  reauthenticateCurrentPassword: vi.fn(async () => {}),
 }));
 
-import { signInWithPassword, signOutUser } from "./authClient";
+import { reauthenticateCurrentPassword, signInWithPassword, signOutUser } from "./authClient";
 import { App } from "./App";
 
 const aliceMe = {
@@ -202,6 +204,199 @@ describe("AC19: Sign out returns to login", () => {
       expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy(),
     );
     expect(screen.queryByText("Budgets")).toBeNull();
+  });
+});
+
+const summerSummary = {
+  id: "b-summer",
+  name: "Summer",
+  ownerId: "uid-alice",
+  ownerDisplayName: "Alice",
+  visibility: "hidden" as const,
+  startDate: null,
+  endDate: null,
+  targetLeftoverCents: null,
+  viewerRelation: "owner" as const,
+};
+
+const summerBudget = {
+  id: "b-summer",
+  name: "Summer",
+  ownerId: "uid-alice",
+  visibility: "hidden",
+  grants: [],
+  description: "",
+  startDate: null,
+  endDate: null,
+  targetLeftoverCents: null,
+  incomeCategories: [],
+  expenseCategories: [],
+  incomeEntries: [],
+  expenseEntries: [],
+};
+
+async function signInAlice() {
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy(),
+  );
+  fireEvent.change(screen.getByLabelText("Email"), {
+    target: { value: "alice@example.com" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "secret12" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+}
+
+describe("AC1: Account opens over Home and Back returns there", () => {
+  it("AC1: Account opens over Home and Back returns there", async () => {
+    mockSignedInFetch();
+    render(<App />);
+    await signInAlice();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Budgets" })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
+    expect(screen.queryByText("Budgets")).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Budgets" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+  });
+});
+
+describe("AC2: Account opens over a budget and Back returns to that budget", () => {
+  it("AC2: Account opens over a budget and Back returns to that budget", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input);
+        if (url === "/api/me") {
+          return { ok: true, json: async () => aliceMe };
+        }
+        if (url === "/api/budgets") {
+          return { ok: true, json: async () => ({ budgets: [summerSummary] }) };
+        }
+        if (url === "/api/budgets/b-summer") {
+          return { ok: true, json: async () => summerBudget };
+        }
+        return { ok: false, json: async () => ({ error: "Not found." }) };
+      }),
+    );
+    render(<App />);
+    await signInAlice();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Back to budgets" })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Back to budgets" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("button", { name: "Back to budgets" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+  });
+});
+
+describe("AC6: Session bar and owner display name refresh after rename", () => {
+  it("AC6: Session bar and owner display name refresh after rename", async () => {
+    let ownerDisplayName = "Alice";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url === "/api/me" && method === "PATCH") {
+          const body = JSON.parse(String(init?.body)) as { displayName: string };
+          ownerDisplayName = body.displayName.trim();
+          return {
+            ok: true,
+            json: async () => ({ ...aliceMe, displayName: ownerDisplayName }),
+          };
+        }
+        if (url === "/api/me") {
+          return { ok: true, json: async () => ({ ...aliceMe, displayName: "Alice" }) };
+        }
+        if (url === "/api/budgets") {
+          return {
+            ok: true,
+            json: async () => ({
+              budgets: [{ ...summerSummary, ownerDisplayName }],
+            }),
+          };
+        }
+        if (url === "/api/budgets/b-summer") {
+          return { ok: true, json: async () => summerBudget };
+        }
+        return { ok: false, json: async () => ({ error: "Not found." }) };
+      }),
+    );
+    render(<App />);
+    await signInAlice();
+    await waitFor(() =>
+      expect(document.querySelector(".session-bar__name")?.textContent).toBe("Alice"),
+    );
+    expect(document.querySelector(".budget-row__owner")?.textContent).toBe("Alice");
+    const listsBefore = vi.mocked(fetch).mock.calls.filter(([input, init]) => {
+      return String(input) === "/api/budgets" && (init?.method ?? "GET") === "GET";
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.change(screen.getByLabelText("Display name"), {
+      target: { value: "Ada" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(document.querySelector(".session-bar__name")?.textContent).toBe("Ada"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() =>
+      expect(document.querySelector(".budget-row__owner")?.textContent).toBe("Ada"),
+    );
+    const listsAfter = vi.mocked(fetch).mock.calls.filter(([input, init]) => {
+      return String(input) === "/api/budgets" && (init?.method ?? "GET") === "GET";
+    });
+    expect(listsAfter.length).toBeGreaterThan(listsBefore.length);
+  });
+});
+
+describe("AC12: Successful delete returns to Sign in even if signOut fails", () => {
+  it("AC12: Successful delete returns to Sign in even if signOut fails", async () => {
+    vi.mocked(signOutUser).mockRejectedValueOnce(new Error("auth user gone"));
+    vi.mocked(reauthenticateCurrentPassword).mockResolvedValueOnce(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url === "/api/me" && method === "DELETE") {
+          return { ok: true, json: async () => ({ ok: true }) };
+        }
+        if (url === "/api/me") {
+          return { ok: true, json: async () => aliceMe };
+        }
+        if (url === "/api/budgets") {
+          return { ok: true, json: async () => ({ budgets: [] }) };
+        }
+        return { ok: false, json: async () => ({ error: "Not found." }) };
+      }),
+    );
+    render(<App />);
+    await signInAlice();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Budgets" })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.change(screen.getAllByLabelText("Current password")[1]!, {
+      target: { value: "secret12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy(),
+    );
+    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
   });
 });
 

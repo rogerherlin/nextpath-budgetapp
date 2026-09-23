@@ -4,10 +4,13 @@ import { clientFetch } from "./clientFetch";
 import {
   connectAuthEmulator,
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   getAuth,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   type User,
 } from "firebase/auth";
 
@@ -88,6 +91,76 @@ export async function registerWithPassword(
 
 export async function signOutUser(): Promise<void> {
   await trackBusy(signOut(getAuth()));
+}
+
+const wrongPasswordCodes = new Set([
+  "auth/wrong-password",
+  "auth/invalid-credential",
+  "auth/invalid-login-credentials",
+]);
+
+function isWrongPassword(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    wrongPasswordCodes.has(error.code)
+  );
+}
+
+function requireCurrentUser(): { user: User; email: string } {
+  const user = getAuth().currentUser;
+  const email = user?.email ?? "";
+  if (user === null || email === "") {
+    throw new Error("Sign in required.");
+  }
+  return { user, email };
+}
+
+export async function reauthenticateCurrentPassword(currentPassword: string): Promise<void> {
+  const { user, email } = requireCurrentUser();
+  const authCredential = EmailAuthProvider.credential(email, currentPassword);
+  await trackBusy(
+    (async () => {
+      try {
+        await reauthenticateWithCredential(user, authCredential);
+      } catch (error: unknown) {
+        if (isWrongPassword(error)) {
+          throw new Error("Current password is wrong.");
+        }
+        throw error;
+      }
+    })(),
+  );
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<void> {
+  if (newPassword !== confirmPassword) {
+    throw new Error("New password does not match.");
+  }
+  if (newPassword.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+  const { user, email } = requireCurrentUser();
+  const authCredential = EmailAuthProvider.credential(email, currentPassword);
+  await trackBusy(
+    (async () => {
+      try {
+        await reauthenticateWithCredential(user, authCredential);
+      } catch (error: unknown) {
+        if (isWrongPassword(error)) {
+          throw new Error("Current password is wrong.");
+        }
+        throw error;
+      }
+      await updatePassword(user, newPassword);
+    })(),
+  );
 }
 
 const profileReadyListeners = new Set<() => void>();

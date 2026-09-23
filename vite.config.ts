@@ -5,6 +5,7 @@ import { defineConfig, type Plugin } from "vitest/config";
 import { applyEnvFile } from "./src/envFile";
 import { AgentMemoryStore } from "./src/agentMemory";
 import { dispatchHttpRequest } from "./src/httpDispatch";
+import { readResourceCaps } from "./src/resourceCaps";
 import { MAX_REQUEST_BYTES } from "./src/serverAccess";
 import { isModeratorEmail } from "./src/acl";
 import { migrateJsonIfNeeded } from "./src/migrate";
@@ -95,6 +96,7 @@ function storeApiPlugin(): Plugin {
             verifyIdToken,
             deleteUser: deleteAuthUser,
             agentMemory,
+            caps: readResourceCaps(),
           });
           const outgoing = res as ServerResponse;
           outgoing.statusCode = result.status;

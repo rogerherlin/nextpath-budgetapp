@@ -30,6 +30,7 @@ vi.mock("firebase/auth", () => ({
 
 import { getBusyCount, resetBusyForTests } from "./busy";
 import { changePassword, loadFirebaseAuth } from "./authClient";
+import { getClientResourceCaps, resetClientResourceCaps } from "./resourceCaps";
 
 const signedInUser = { uid: "uid-alice", email: "alice@example.com" };
 
@@ -50,6 +51,7 @@ afterEach(() => {
   reauthenticateWithCredential.mockReset();
   updatePassword.mockReset();
   resetBusyForTests();
+  resetClientResourceCaps();
 });
 
 describe("AC66: Browser Auth uses the emulator when config says so", () => {
@@ -79,6 +81,47 @@ describe("AC66: Browser Auth uses the emulator when config says so", () => {
       "http://127.0.0.1:9099",
       { disableWarnings: true },
     );
+  });
+});
+
+describe("AC26: The client stores config caps and uses defaults until then", () => {
+  it("AC26: The client stores config caps and uses defaults until then", async () => {
+    expect(getClientResourceCaps()).toEqual({
+      userCount: 3,
+      userBudgetCount: 2,
+      categoryCount: 4,
+      entryCount: 4,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          apiKey: "k",
+          authDomain: "demo.firebaseapp.com",
+          projectId: "demo",
+          userCount: 7,
+          userBudgetCount: 9,
+          categoryCount: 11,
+          entryCount: 0,
+        }),
+      })),
+    );
+
+    await loadFirebaseAuth();
+
+    expect(getClientResourceCaps()).toEqual({
+      userCount: 7,
+      userBudgetCount: 9,
+      categoryCount: 11,
+      entryCount: 4,
+    });
+    expect(initializeApp).toHaveBeenCalledWith({
+      apiKey: "k",
+      authDomain: "demo.firebaseapp.com",
+      projectId: "demo",
+    });
   });
 });
 

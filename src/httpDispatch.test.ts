@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { dispatchHttpRequest, listenPort } from "./httpDispatch";
 import { canWrite } from "./acl";
 import { MemoryRepo } from "./repo";
-import type { Actor, Budget, UserProfile } from "./types";
+import type { ResourceCaps } from "./resourceCaps";
+import type { Actor, Budget, Category, Entry, UserProfile } from "./types";
 import type { GeminiCaller } from "./geminiSuggest";
 
 const ALICE: UserProfile = {
@@ -114,6 +115,7 @@ type DispatchOpts = {
   nowIso?: () => string;
   createId?: () => string;
   verifyIdToken?: (token: string) => Promise<{ uid: string; email?: string }>;
+  caps?: ResourceCaps;
 };
 
 function dispatch(input: DispatchOpts) {
@@ -135,6 +137,7 @@ function dispatch(input: DispatchOpts) {
     geminiCaller: input.geminiCaller,
     nowIso: input.nowIso,
     createId: input.createId,
+    caps: input.caps,
   });
 }
 
@@ -162,6 +165,10 @@ describe("AC1: Public config", () => {
           apiKey: "k",
           authDomain: "demo.firebaseapp.com",
           projectId: "demo",
+          userCount: 3,
+          userBudgetCount: 2,
+          categoryCount: 4,
+          entryCount: 4,
         }),
       );
     });
@@ -185,6 +192,68 @@ describe("AC65: Config includes Auth emulator origin locally", () => {
           authDomain: "demo.firebaseapp.com",
           projectId: "demo",
           authEmulatorHost: "http://127.0.0.1:9099",
+          userCount: 3,
+          userBudgetCount: 2,
+          categoryCount: 4,
+          entryCount: 4,
+        }),
+      );
+    });
+  });
+});
+
+describe("resource-caps AC4: Public config includes the default caps", () => {
+  it("resource-caps AC4: Public config includes the default caps", async () => {
+    await withTempDir(async (dir) => {
+      const result = await dispatch({
+        method: "GET",
+        pathname: "/api/config",
+        distDir: join(dir, "dist"),
+        repo: new MemoryRepo(),
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(
+        JSON.stringify({
+          apiKey: "k",
+          authDomain: "demo.firebaseapp.com",
+          projectId: "demo",
+          userCount: 3,
+          userBudgetCount: 2,
+          categoryCount: 4,
+          entryCount: 4,
+        }),
+      );
+    });
+  });
+});
+
+describe("resource-caps AC5: Config includes configured caps and the emulator host", () => {
+  it("resource-caps AC5: Config includes configured caps and the emulator host", async () => {
+    await withTempDir(async (dir) => {
+      const result = await dispatch({
+        method: "GET",
+        pathname: "/api/config",
+        distDir: join(dir, "dist"),
+        repo: new MemoryRepo(),
+        firebaseAuthEmulatorHost: "127.0.0.1:9099",
+        caps: {
+          userCount: 5,
+          userBudgetCount: 9,
+          categoryCount: 11,
+          entryCount: 13,
+        },
+      });
+      expect(result.status).toBe(200);
+      expect(result.body).toBe(
+        JSON.stringify({
+          apiKey: "k",
+          authDomain: "demo.firebaseapp.com",
+          projectId: "demo",
+          authEmulatorHost: "http://127.0.0.1:9099",
+          userCount: 5,
+          userBudgetCount: 9,
+          categoryCount: 11,
+          entryCount: 13,
         }),
       );
     });
@@ -304,11 +373,11 @@ describe("AC7: Register rejects empty display name", () => {
   });
 });
 
-describe("AC8: Eleventh register is rejected and Auth user is deleted", () => {
-  it("AC8: Eleventh register is rejected and Auth user is deleted", async () => {
+describe("AC8: Register at the household cap is rejected and Auth user is deleted", () => {
+  it("AC8: Register at the household cap is rejected and Auth user is deleted", async () => {
     await withTempDir(async (dir) => {
       const repo = new MemoryRepo();
-      for (let i = 0; i < 10; i += 1) {
+      for (let i = 0; i < 3; i += 1) {
         await repo.saveProfile({
           id: `uid-${i}`,
           email: `u${i}@example.com`,
@@ -329,9 +398,9 @@ describe("AC8: Eleventh register is rejected and Auth user is deleted", () => {
       });
       expect(result.status).toBe(403);
       expect(result.body).toBe(
-        JSON.stringify({ error: "The household is full (10 users)." }),
+        JSON.stringify({ error: "The household is full (3 users)." }),
       );
-      expect(await repo.profileCount()).toBe(10);
+      expect(await repo.profileCount()).toBe(3);
       expect(deleteUser).toHaveBeenCalledTimes(1);
       expect(deleteUser).toHaveBeenCalledWith("uid-new");
     });
@@ -449,7 +518,7 @@ describe("AC13: Orphan Auth user at cap is deleted on /api/me", () => {
   it("AC13: Orphan Auth user at cap is deleted on /api/me", async () => {
     await withTempDir(async (dir) => {
       const repo = new MemoryRepo();
-      for (let i = 0; i < 10; i += 1) {
+      for (let i = 0; i < 3; i += 1) {
         await repo.saveProfile({
           id: `uid-${i}`,
           email: `u${i}@example.com`,
@@ -469,7 +538,7 @@ describe("AC13: Orphan Auth user at cap is deleted on /api/me", () => {
       });
       expect(result.status).toBe(403);
       expect(result.body).toBe(
-        JSON.stringify({ error: "The household is full (10 users)." }),
+        JSON.stringify({ error: "The household is full (3 users)." }),
       );
       expect(deleteUser).toHaveBeenCalledTimes(1);
       expect(deleteUser).toHaveBeenCalledWith("uid-orphan");
@@ -1752,6 +1821,639 @@ describe("account-settings AC17: Moderator delete of someone else is unchanged",
       expect(self.status).toBe(403);
       expect(self.body).toBe(JSON.stringify({ error: "Not allowed." }));
       expect(await repo.getProfile("uid-mod")).toEqual(MOD);
+    });
+  });
+});
+
+const HOUSEHOLD_FULL_3 = "The household is full (3 users).";
+const OWNED_BUDGET_CAP = "You can own at most 2 budgets.";
+
+async function seedProfiles(repo: MemoryRepo, count: number): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await repo.saveProfile({
+      id: `uid-${i}`,
+      email: `u${i}@example.com`,
+      displayName: `U${i}`,
+      canUseFromText: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+  }
+}
+
+function categories(count: number, prefix: string): Category[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${prefix}-${index}`,
+    name: `${prefix} ${index}`,
+  }));
+}
+
+function entries(count: number, prefix: string): Entry[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${prefix}-${index}`,
+    categoryId: "c0",
+    comment: "x",
+    amountCents: 1,
+    date: null,
+  }));
+}
+
+function cappedBudget(
+  id: string,
+  ownerId: string,
+  counts: {
+    incomeCategories?: number;
+    expenseCategories?: number;
+    incomeEntries?: number;
+    expenseEntries?: number;
+  },
+  overrides: Partial<Budget> = {},
+): Budget {
+  return emptyBudget(id, id, ownerId, {
+    incomeCategories: categories(
+      counts.incomeCategories ?? 0,
+      `${id}-income-categories`,
+    ),
+    expenseCategories: categories(
+      counts.expenseCategories ?? 0,
+      `${id}-expense-categories`,
+    ),
+    incomeEntries: entries(counts.incomeEntries ?? 0, `${id}-income-entries`),
+    expenseEntries: entries(
+      counts.expenseEntries ?? 0,
+      `${id}-expense-entries`,
+    ),
+    ...overrides,
+  });
+}
+
+describe("resource-caps AC3: Dispatch uses input caps, not process.env", () => {
+  it("resource-caps AC3: Dispatch uses input caps, not process.env", async () => {
+    const previous = process.env.CAP_USER_COUNT;
+    process.env.CAP_USER_COUNT = "9";
+    try {
+      await withTempDir(async (dir) => {
+        const repo = new MemoryRepo();
+        await seedProfiles(repo, 3);
+        const result = await dispatch({
+          method: "POST",
+          pathname: "/api/register",
+          authorization: "Bearer newuser",
+          body: JSON.stringify({ displayName: "New" }),
+          distDir: join(dir, "dist"),
+          repo,
+        });
+        expect(result.status).toBe(403);
+        expect(result.body).toBe(JSON.stringify({ error: HOUSEHOLD_FULL_3 }));
+      });
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CAP_USER_COUNT;
+      } else {
+        process.env.CAP_USER_COUNT = previous;
+      }
+    }
+  });
+});
+
+describe("resource-caps AC6: Third register succeeds and the fourth is rejected", () => {
+  it("resource-caps AC6: Third register succeeds and the fourth is rejected", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedProfiles(repo, 2);
+      const deleteUser = vi.fn(async () => {});
+      const verifyIdToken = async (token: string) => {
+        if (token === "new") {
+          return { uid: "uid-new", email: "new@example.com" };
+        }
+        if (token === "next") {
+          return { uid: "uid-next", email: "next@example.com" };
+        }
+        throw new Error("invalid");
+      };
+      const first = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer new",
+        body: JSON.stringify({ displayName: "New" }),
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+        verifyIdToken,
+      });
+      expect(first.status).toBe(201);
+      expect(await repo.profileCount()).toBe(3);
+      const second = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer next",
+        body: JSON.stringify({ displayName: "Next" }),
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+        verifyIdToken,
+      });
+      expect(second.status).toBe(403);
+      expect(second.body).toBe(JSON.stringify({ error: HOUSEHOLD_FULL_3 }));
+      expect(await repo.profileCount()).toBe(3);
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-next");
+    });
+  });
+});
+
+describe("resource-caps AC7: The configured user cap is the number in the error", () => {
+  it("resource-caps AC7: The configured user cap is the number in the error", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedProfiles(repo, 5);
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer newuser",
+        body: JSON.stringify({ displayName: "New" }),
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+        caps: {
+          userCount: 5,
+          userBudgetCount: 2,
+          categoryCount: 4,
+          entryCount: 4,
+        },
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(
+        JSON.stringify({ error: "The household is full (5 users)." }),
+      );
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-new");
+    });
+  });
+});
+
+describe("resource-caps AC8: An existing profile at the cap is not deleted", () => {
+  it("resource-caps AC8: An existing profile at the cap is not deleted", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(BOB);
+      await repo.saveProfile(CAROL);
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ displayName: "Other" }),
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(200);
+      expect((await repo.getProfile("uid-alice"))?.displayName).toBe("Alice");
+      expect(deleteUser).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("resource-caps AC9: Orphan GET /api/me at the default cap deletes the Auth user", () => {
+  it("resource-caps AC9: Orphan GET /api/me at the default cap deletes the Auth user", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedProfiles(repo, 3);
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "GET",
+        pathname: "/api/me",
+        authorization: "Bearer orphan",
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(JSON.stringify({ error: HOUSEHOLD_FULL_3 }));
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-orphan");
+    });
+  });
+});
+
+describe("resource-caps AC10: An orphan on another route at the cap gets the same rejection", () => {
+  it("resource-caps AC10: An orphan on another route at the cap gets the same rejection", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedProfiles(repo, 3);
+      const deleteUser = vi.fn(async () => {});
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets",
+        authorization: "Bearer orphan",
+        body: JSON.stringify({ name: "Summer" }),
+        distDir: join(dir, "dist"),
+        repo,
+        deleteUser,
+      });
+      expect(result.status).toBe(403);
+      expect(result.body).toBe(JSON.stringify({ error: HOUSEHOLD_FULL_3 }));
+      expect(deleteUser).toHaveBeenCalledTimes(1);
+      expect(deleteUser).toHaveBeenCalledWith("uid-orphan");
+      expect(await repo.budgetCount()).toBe(0);
+    });
+  });
+});
+
+describe("resource-caps AC11: The moderator occupies one of the three slots", () => {
+  it("resource-caps AC11: The moderator occupies one of the three slots", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await seedProfiles(repo, 2);
+      const verifyIdToken = async (token: string) => {
+        if (token === "mod") {
+          return { uid: "uid-mod", email: "mod@example.com" };
+        }
+        if (token === "fourth") {
+          return { uid: "uid-fourth", email: "fourth@example.com" };
+        }
+        throw new Error("invalid");
+      };
+      const created = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer mod",
+        body: JSON.stringify({ displayName: "Mod" }),
+        distDir: join(dir, "dist"),
+        repo,
+        verifyIdToken,
+      });
+      expect(created.status).toBe(201);
+      const body = JSON.parse(created.body) as { isModerator: boolean };
+      expect(body.isModerator).toBe(true);
+      expect(await repo.profileCount()).toBe(3);
+      const fourth = await dispatch({
+        method: "POST",
+        pathname: "/api/register",
+        authorization: "Bearer fourth",
+        body: JSON.stringify({ displayName: "Fourth" }),
+        distDir: join(dir, "dist"),
+        repo,
+        verifyIdToken,
+      });
+      expect(fourth.status).toBe(403);
+      expect(fourth.body).toBe(JSON.stringify({ error: HOUSEHOLD_FULL_3 }));
+    });
+  });
+});
+
+describe("resource-caps AC12: A third owned budget is rejected", () => {
+  it("resource-caps AC12: A third owned budget is rejected", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+      await repo.saveBudget(emptyBudget("b2", "Two", "uid-alice"));
+      const blank = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ name: "" }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(blank.status).toBe(400);
+      expect(blank.body).toBe(JSON.stringify({ error: OWNED_BUDGET_CAP }));
+      expect(await repo.budgetCount()).toBe(2);
+      const named = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ name: "Autumn" }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(named.status).toBe(400);
+      expect(named.body).toBe(JSON.stringify({ error: OWNED_BUDGET_CAP }));
+      expect(await repo.budgetCount()).toBe(2);
+    });
+  });
+});
+
+describe("resource-caps AC13: Budgets owned by someone else do not count", () => {
+  it("resource-caps AC13: Budgets owned by someone else do not count", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(BOB);
+      await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+      await repo.saveBudget(
+        emptyBudget("b2", "Two", "uid-bob", {
+          grants: [{ userId: "uid-alice", role: "edit" }],
+        }),
+      );
+      await repo.saveBudget(emptyBudget("b3", "Three", "uid-bob"));
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ name: "Autumn" }),
+        distDir: join(dir, "dist"),
+        repo,
+        createId: () => "b-autumn",
+      });
+      expect(result.status).toBe(201);
+      const body = JSON.parse(result.body) as Budget;
+      expect(body.ownerId).toBe("uid-alice");
+    });
+  });
+});
+
+describe("resource-caps AC14: Copy at the owned cap is 400", () => {
+  it("resource-caps AC14: Copy at the owned cap is 400", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(BOB);
+      await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+      await repo.saveBudget(emptyBudget("b2", "Two", "uid-alice"));
+      await repo.saveBudget(
+        emptyBudget("b3", "Three", "uid-bob", {
+          grants: [{ userId: "uid-alice", role: "browse" }],
+        }),
+      );
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets/b3/copy",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(400);
+      expect(result.body).toBe(JSON.stringify({ error: OWNED_BUDGET_CAP }));
+      expect(await repo.budgetCount()).toBe(3);
+    });
+  });
+});
+
+describe("resource-caps AC16: Income categories cannot grow past the cap", () => {
+  it("resource-caps AC16: Income categories cannot grow past the cap", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const stored = cappedBudget("b1", "uid-alice", { incomeCategories: 4 });
+      await repo.saveBudget(stored);
+      const result = await dispatch({
+        method: "PUT",
+        pathname: "/api/budgets/b1",
+        authorization: "Bearer alice",
+        body: JSON.stringify({
+          incomeCategories: categories(5, "income-categories"),
+        }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(400);
+      expect(result.body).toBe(
+        JSON.stringify({
+          error: "A budget can have at most 4 income categories.",
+        }),
+      );
+      expect((await repo.getBudgetDoc("b1"))?.incomeCategories).toHaveLength(4);
+    });
+  });
+});
+
+describe("resource-caps AC17: The other three lists use their own messages", () => {
+  it("resource-caps AC17: The other three lists use their own messages", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const stored = cappedBudget("b1", "uid-alice", {
+        incomeCategories: 4,
+        expenseCategories: 4,
+        incomeEntries: 4,
+        expenseEntries: 4,
+      });
+      await repo.saveBudget(stored);
+      const cases = [
+        {
+          body: { expenseCategories: categories(5, "expense-categories") },
+          error: "A budget can have at most 4 expense categories.",
+        },
+        {
+          body: { incomeEntries: entries(5, "income-entries") },
+          error: "A budget can have at most 4 income entries.",
+        },
+        {
+          body: { expenseEntries: entries(5, "expense-entries") },
+          error: "A budget can have at most 4 expense entries.",
+        },
+      ];
+      for (const item of cases) {
+        const result = await dispatch({
+          method: "PUT",
+          pathname: "/api/budgets/b1",
+          authorization: "Bearer alice",
+          body: JSON.stringify(item.body),
+          distDir: join(dir, "dist"),
+          repo,
+        });
+        expect(result.status).toBe(400);
+        expect(result.body).toBe(JSON.stringify({ error: item.error }));
+        expect(await repo.getBudgetDoc("b1")).toEqual(stored);
+      }
+    });
+  });
+});
+
+describe("resource-caps AC18: An over-cap list that does not grow still saves", () => {
+  it("resource-caps AC18: An over-cap list that does not grow still saves", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const five = categories(5, "income-categories");
+      await repo.saveBudget(
+        emptyBudget("b1", "Summer", "uid-alice", { incomeCategories: five }),
+      );
+      const renamed = five.map((category, index) =>
+        index === 0 ? { ...category, name: "Salary" } : category,
+      );
+      const renamedResult = await dispatch({
+        method: "PUT",
+        pathname: "/api/budgets/b1",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ incomeCategories: renamed }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(renamedResult.status).toBe(200);
+      expect((await repo.getBudgetDoc("b1"))?.incomeCategories[0]?.name).toBe(
+        "Salary",
+      );
+      const shrunk = await dispatch({
+        method: "PUT",
+        pathname: "/api/budgets/b1",
+        authorization: "Bearer alice",
+        body: JSON.stringify({ incomeCategories: renamed.slice(0, 4) }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(shrunk.status).toBe(200);
+      expect((await repo.getBudgetDoc("b1"))?.incomeCategories).toHaveLength(4);
+    });
+  });
+});
+
+describe("resource-caps AC19: The first overflowing list is the error", () => {
+  it("resource-caps AC19: The first overflowing list is the error", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const stored = cappedBudget("b1", "uid-alice", {
+        incomeCategories: 4,
+        expenseCategories: 4,
+        incomeEntries: 4,
+        expenseEntries: 4,
+      });
+      await repo.saveBudget(stored);
+      const both = await dispatch({
+        method: "PUT",
+        pathname: "/api/budgets/b1",
+        authorization: "Bearer alice",
+        body: JSON.stringify({
+          incomeCategories: categories(5, "income-categories"),
+          expenseEntries: entries(5, "expense-entries"),
+        }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(both.status).toBe(400);
+      expect(both.body).toBe(
+        JSON.stringify({
+          error: "A budget can have at most 4 income categories.",
+        }),
+      );
+      expect(await repo.getBudgetDoc("b1")).toEqual(stored);
+
+      await repo.saveBudget(
+        emptyBudget("b1", "Summer", "uid-alice", {
+          incomeCategories: categories(6, "wide"),
+        }),
+      );
+      const wider = await dispatch({
+        method: "PUT",
+        pathname: "/api/budgets/b1",
+        authorization: "Bearer alice",
+        body: JSON.stringify({
+          incomeCategories: categories(7, "wider"),
+        }),
+        distDir: join(dir, "dist"),
+        repo,
+        caps: {
+          userCount: 3,
+          userBudgetCount: 2,
+          categoryCount: 6,
+          entryCount: 4,
+        },
+      });
+      expect(wider.status).toBe(400);
+      expect(wider.body).toBe(
+        JSON.stringify({
+          error: "A budget can have at most 6 income categories.",
+        }),
+      );
+    });
+  });
+});
+
+describe("resource-caps AC20: Copy of a budget past a list cap is rejected", () => {
+  it("resource-caps AC20: Copy of a budget past a list cap is rejected", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveProfile(BOB);
+      await repo.saveBudget(
+        cappedBudget(
+          "b1",
+          "uid-bob",
+          { incomeCategories: 5 },
+          { grants: [{ userId: "uid-alice", role: "browse" }] },
+        ),
+      );
+      const income = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets/b1/copy",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(income.status).toBe(400);
+      expect(income.body).toBe(
+        JSON.stringify({
+          error: "A budget can have at most 4 income categories.",
+        }),
+      );
+      const owned = (await repo.listBudgetDocs()).filter(
+        (budget) => budget.ownerId === "uid-alice",
+      );
+      expect(owned).toHaveLength(0);
+
+      await repo.saveBudget(
+        cappedBudget(
+          "b2",
+          "uid-bob",
+          {
+            incomeCategories: 4,
+            expenseCategories: 4,
+            incomeEntries: 4,
+            expenseEntries: 5,
+          },
+          { grants: [{ userId: "uid-alice", role: "browse" }] },
+        ),
+      );
+      const expenses = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets/b2/copy",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(expenses.status).toBe(400);
+      expect(expenses.body).toBe(
+        JSON.stringify({
+          error: "A budget can have at most 4 expense entries.",
+        }),
+      );
+      expect(
+        (await repo.listBudgetDocs()).filter(
+          (budget) => budget.ownerId === "uid-alice",
+        ),
+      ).toHaveLength(0);
+    });
+  });
+});
+
+describe("resource-caps AC21: Copy at exactly the cap succeeds", () => {
+  it("resource-caps AC21: Copy at exactly the cap succeeds", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      await repo.saveBudget(
+        cappedBudget("b1", "uid-alice", {
+          incomeCategories: 4,
+          expenseCategories: 4,
+          incomeEntries: 4,
+          expenseEntries: 4,
+        }),
+      );
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/budgets/b1/copy",
+        authorization: "Bearer alice",
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(201);
+      const body = JSON.parse(result.body) as Budget;
+      expect(body.ownerId).toBe("uid-alice");
     });
   });
 });

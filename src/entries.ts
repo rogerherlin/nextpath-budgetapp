@@ -1,4 +1,5 @@
 import { listBudgets, mapBudget, type CreateBudgetResult } from "./budgets";
+import { getClientResourceCaps, listLimitMessage } from "./resourceCaps";
 import type { Entry } from "./types";
 
 type EntryKind = "income" | "expense";
@@ -21,6 +22,21 @@ export function addEntry(
   );
   if (input.categoryId === "" || categoryMissing) {
     return { ok: false, error: "Select a category." };
+  }
+  const entries = budget
+    ? kind === "income"
+      ? budget.incomeEntries
+      : budget.expenseEntries
+    : [];
+  const { entryCount } = getClientResourceCaps();
+  if (entries.length >= entryCount) {
+    return {
+      ok: false,
+      error: listLimitMessage(
+        kind === "income" ? "income entries" : "expense entries",
+        entryCount,
+      ),
+    };
   }
   entrySeq += 1;
   const entry: Entry = {

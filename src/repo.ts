@@ -8,6 +8,13 @@ import {
   type CreateBudgetInput,
 } from "./budgets";
 import { setPersist } from "./persist";
+import {
+  DEFAULT_RESOURCE_CAPS,
+  listLimitMessage,
+  ownedBudgetLimitMessage,
+  type CappedListName,
+  type ResourceCaps,
+} from "./resourceCaps";
 import type {
   Actor,
   Budget,
@@ -17,8 +24,6 @@ import type {
   UserProfile,
   Visibility,
 } from "./types";
-
-export const MAX_PROFILES = 10;
 
 export type RepoGetResult =
   | { ok: true; value: Budget }
@@ -163,13 +168,96 @@ export async function getBudget(
 
 export type NamedIdFactory = () => string;
 
+function ownedBudgetCount(budgets: Budget[], ownerId: string): number {
+  return budgets.filter((budget) => budget.ownerId === ownerId).length;
+}
+
+function sourceListCapError(budget: Budget, caps: ResourceCaps): string | null {
+  const lists: Array<{ name: CappedListName; length: number; cap: number }> = [
+    {
+      name: "income categories",
+      length: budget.incomeCategories.length,
+      cap: caps.categoryCount,
+    },
+    {
+      name: "expense categories",
+      length: budget.expenseCategories.length,
+      cap: caps.categoryCount,
+    },
+    {
+      name: "income entries",
+      length: budget.incomeEntries.length,
+      cap: caps.entryCount,
+    },
+    {
+      name: "expense entries",
+      length: budget.expenseEntries.length,
+      cap: caps.entryCount,
+    },
+  ];
+  for (const list of lists) {
+    if (list.length > list.cap) {
+      return listLimitMessage(list.name, list.cap);
+    }
+  }
+  return null;
+}
+
+function growingListCapError(
+  existing: Budget,
+  next: Budget,
+  caps: ResourceCaps,
+): string | null {
+  const lists: Array<{
+    name: CappedListName;
+    nextLength: number;
+    storedLength: number;
+    cap: number;
+  }> = [
+    {
+      name: "income categories",
+      nextLength: next.incomeCategories.length,
+      storedLength: existing.incomeCategories.length,
+      cap: caps.categoryCount,
+    },
+    {
+      name: "expense categories",
+      nextLength: next.expenseCategories.length,
+      storedLength: existing.expenseCategories.length,
+      cap: caps.categoryCount,
+    },
+    {
+      name: "income entries",
+      nextLength: next.incomeEntries.length,
+      storedLength: existing.incomeEntries.length,
+      cap: caps.entryCount,
+    },
+    {
+      name: "expense entries",
+      nextLength: next.expenseEntries.length,
+      storedLength: existing.expenseEntries.length,
+      cap: caps.entryCount,
+    },
+  ];
+  for (const list of lists) {
+    if (list.nextLength > list.cap && list.nextLength > list.storedLength) {
+      return listLimitMessage(list.name, list.cap);
+    }
+  }
+  return null;
+}
+
 export async function createBudgetForActor(
   repo: AppRepo,
   actor: Actor,
   input: CreateBudgetInput,
   createId: NamedIdFactory,
+  caps: ResourceCaps = DEFAULT_RESOURCE_CAPS,
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string }> {
   const existing = await repo.listBudgetDocs();
+  if (ownedBudgetCount(existing, actor.profile.id) >= caps.userBudgetCount) {
+    return { ok: false, error: ownedBudgetLimitMessage(caps.userBudgetCount) };
+  }
   resetStore(existing);
   setPersist(() => {});
   const before = new Set(existing.map((budget) => budget.id));
@@ -211,13 +299,30 @@ export async function copyBudgetForActor(
   repo: AppRepo,
   actor: Actor,
   id: string,
-): Promise<{ ok: true; budget: Budget } | { ok: false; error: string }> {
+  caps: ResourceCaps = DEFAULT_RESOURCE_CAPS,
+): Promise<
+  { ok: true; budget: Budget } | { ok: false; error: string; status?: number }
+> {
   const source = await repo.getBudgetDoc(id);
   const readable = decideBudgetAccess(actor, source, "read");
-  if (!readable.ok) {
-    return { ok: false, error: readable.error };
+  if (!readable.ok || source === null) {
+    return {
+      ok: false,
+      error: readable.ok ? "Not found." : readable.error,
+    };
   }
   const all = await repo.listBudgetDocs();
+  if (ownedBudgetCount(all, actor.profile.id) >= caps.userBudgetCount) {
+    return {
+      ok: false,
+      error: ownedBudgetLimitMessage(caps.userBudgetCount),
+      status: 400,
+    };
+  }
+  const listError = sourceListCapError(source, caps);
+  if (listError !== null) {
+    return { ok: false, error: listError, status: 400 };
+  }
   resetStore(all);
   setPersist(() => {});
   const before = new Set(all.map((budget) => budget.id));
@@ -302,6 +407,7 @@ export async function saveWritableBudget(
   actor: Actor,
   id: string,
   budget: Budget,
+  caps: ResourceCaps = DEFAULT_RESOURCE_CAPS,
 ): Promise<{ ok: true; budget: Budget } | { ok: false; error: string; status: number }> {
   const existing = await repo.getBudgetDoc(id);
   const access = decideBudgetAccess(actor, existing, "write");
@@ -319,6 +425,10 @@ export async function saveWritableBudget(
     visibility: existing.visibility,
     grants: existing.grants,
   };
+  const listError = growingListCapError(existing, next, caps);
+  if (listError !== null) {
+    return { ok: false, error: listError, status: 400 };
+  }
   await repo.saveBudget(next);
   return { ok: true, budget: next };
 }

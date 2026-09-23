@@ -1,5 +1,6 @@
 import { listBudgets, mapBudget, type CreateBudgetResult } from "./budgets";
 import { isNameTaken, normalizeName } from "./names";
+import { getClientResourceCaps, listLimitMessage } from "./resourceCaps";
 import type { Budget, Category, Entry } from "./types";
 
 type CategoryKind = "income" | "expense";
@@ -20,8 +21,19 @@ export function addCategory(
     return { ok: false, error: "Name is required." };
   }
   const budget = listBudgets().find((item) => item.id === budgetId);
-  if (budget && isNameTaken(name, categoriesOf(budget, kind).map((item) => item.name))) {
+  const existing = budget ? categoriesOf(budget, kind) : [];
+  if (budget && isNameTaken(name, existing.map((item) => item.name))) {
     return { ok: false, error: "The name is already in use." };
+  }
+  const { categoryCount } = getClientResourceCaps();
+  if (existing.length >= categoryCount) {
+    return {
+      ok: false,
+      error: listLimitMessage(
+        kind === "income" ? "income categories" : "expense categories",
+        categoryCount,
+      ),
+    };
   }
   categorySeq += 1;
   const category = { id: `c-${Date.now()}-${categorySeq}`, name };

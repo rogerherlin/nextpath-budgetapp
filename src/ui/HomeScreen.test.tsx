@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetStore } from "../budgets";
-import type { Budget } from "../types";
+import { DEFAULT_RESOURCE_CAPS, setClientResourceCaps } from "../resourceCaps";
+import type { Budget, UserProfile } from "../types";
 import { HomeScreen, deleteUserConfirmMessage } from "./HomeScreen";
 
 function summerBudget(): Budget {
@@ -27,6 +28,7 @@ function summerBudget(): Budget {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  setClientResourceCaps(DEFAULT_RESOURCE_CAPS);
 });
 
 describe("AC16: Delete-budget confirmation copy", () => {
@@ -121,7 +123,7 @@ describe("AC60: Moderator panel", () => {
       expect(screen.getByText(user.email)).toBeTruthy();
     }
     expect(screen.getAllByLabelText("From text")).toHaveLength(10);
-    expect(screen.getByText("Sign-up is full (10 users).")).toBeTruthy();
+    expect(screen.getByText("Sign-up is full (3 users).")).toBeTruthy();
   });
 });
 
@@ -179,5 +181,55 @@ describe("AC72: Household Delete user control", () => {
     expect(deleteUserConfirmMessage("alice@example.com")).toBe(
       'Delete user “alice@example.com”? Their budgets will also be deleted.',
     );
+  });
+});
+
+function householdOf(count: number): UserProfile[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `uid-${index}`,
+    email: `user${index}@example.com`,
+    displayName: `User ${index}`,
+    canUseFromText: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  }));
+}
+
+function renderModeratorHousehold(count: number): void {
+  resetStore([]);
+  render(
+    <HomeScreen
+      actor={{
+        profile: {
+          id: "uid-mod",
+          email: "mod@example.com",
+          displayName: "Mod",
+          canUseFromText: true,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+        isModerator: true,
+      }}
+      household={householdOf(count)}
+    />,
+  );
+}
+
+describe("AC27: Home sign-up full uses the user cap", () => {
+  it("AC27: Home sign-up full uses the user cap", () => {
+    renderModeratorHousehold(3);
+    expect(screen.getByText("Sign-up is full (3 users).")).toBeTruthy();
+
+    cleanup();
+    renderModeratorHousehold(2);
+    expect(screen.queryByText("Sign-up is full (3 users).")).toBeNull();
+
+    cleanup();
+    setClientResourceCaps({ ...DEFAULT_RESOURCE_CAPS, userCount: 10 });
+    renderModeratorHousehold(3);
+    expect(screen.queryByText("Sign-up is full (10 users).")).toBeNull();
+
+    cleanup();
+    setClientResourceCaps({ ...DEFAULT_RESOURCE_CAPS, userCount: 10 });
+    renderModeratorHousehold(10);
+    expect(screen.getByText("Sign-up is full (10 users).")).toBeTruthy();
   });
 });

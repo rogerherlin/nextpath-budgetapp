@@ -350,3 +350,26 @@ describe("account-settings: moderator delete of another user uses the shared cas
     expect(deleteUser).toHaveBeenCalledWith("uid-alice");
   });
 });
+
+describe("resource-caps AC15: repo.saveBudget is not capped", () => {
+  it("resource-caps AC15: repo.saveBudget is not capped", async () => {
+    const repo = new MemoryRepo();
+    await repo.saveProfile(alice.profile);
+    await repo.saveBudget(emptyBudget("b1", "One", "uid-alice"));
+    await repo.saveBudget(emptyBudget("b2", "Two", "uid-alice"));
+    await repo.saveBudget(emptyBudget("b3", "Three", "uid-alice"));
+    expect(await repo.budgetCount()).toBe(3);
+    expect((await repo.getBudgetDoc("b3"))?.ownerId).toBe("uid-alice");
+    const created = await createBudgetForActor(
+      repo,
+      alice,
+      { name: "Autumn" },
+      () => "b4",
+    );
+    expect(created).toEqual({
+      ok: false,
+      error: "You can own at most 2 budgets.",
+    });
+    expect(await repo.budgetCount()).toBe(3);
+  });
+});

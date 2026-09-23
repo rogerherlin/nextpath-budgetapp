@@ -121,30 +121,36 @@ function resolveOrCreateCategory(
   kind: SuggestKind,
   categoryId: string | null,
   name: string,
-): string | null {
+): { ok: true; id: string } | { ok: false; error: string } {
   const budget = listBudgets().find((item) => item.id === budgetId);
   if (!budget) {
-    return null;
+    return { ok: false, error: "Select a category." };
   }
   const list = categoriesOf(budget, kind);
   if (categoryId && list.some((category) => category.id === categoryId)) {
-    return categoryId;
+    return { ok: true, id: categoryId };
   }
   const existing = list.find((category) =>
     isNameTaken(name, [category.name]),
   );
   if (existing) {
-    return existing.id;
+    return { ok: true, id: existing.id };
   }
-  addCategory(budgetId, kind, { name });
+  const added = addCategory(budgetId, kind, { name });
+  if (!added.ok) {
+    return added;
+  }
   const after = listBudgets().find((item) => item.id === budgetId);
   if (!after) {
-    return null;
+    return { ok: false, error: "Select a category." };
   }
   const matchAfter = categoriesOf(after, kind).find((category) =>
     isNameTaken(name, [category.name]),
   );
-  return matchAfter?.id ?? null;
+  if (!matchAfter) {
+    return { ok: false, error: "Select a category." };
+  }
+  return { ok: true, id: matchAfter.id };
 }
 
 export function applySuggestedItems(
@@ -172,18 +178,18 @@ export function applySuggestedItems(
       remaining.push({ ...row, error: date.error });
       continue;
     }
-    const categoryId = resolveOrCreateCategory(
+    const category = resolveOrCreateCategory(
       budgetId,
       row.kind,
       row.categoryId,
       name,
     );
-    if (categoryId === null) {
-      remaining.push({ ...row, error: "Select a category." });
+    if (!category.ok) {
+      remaining.push({ ...row, error: category.error });
       continue;
     }
     const added = addEntry(budgetId, row.kind, {
-      categoryId,
+      categoryId: category.id,
       comment: row.comment,
       amountCents: amount.cents,
       date: date.date,

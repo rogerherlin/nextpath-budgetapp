@@ -12,6 +12,7 @@ import {
 } from "../budgets";
 import { parseDate } from "../dates";
 import { parseOptionalMoney } from "../money";
+import { getClientResourceCaps, signUpFullMessage } from "../resourceCaps";
 import type {
   Actor,
   BudgetSummary,
@@ -76,6 +77,7 @@ export function HomeScreen({
   onSummariesChange?: (next: BudgetSummary[]) => void;
 }) {
   useStoreRevision();
+  const userCap = getClientResourceCaps().userCount;
   const listed: Array<{
     id: string;
     name: string;
@@ -347,8 +349,8 @@ export function HomeScreen({
               </li>
             ))}
           </ul>
-          {(household ?? []).length >= 10 ? (
-            <p>Sign-up is full (10 users).</p>
+          {(household ?? []).length >= userCap ? (
+            <p>{signUpFullMessage(userCap)}</p>
           ) : null}
         </section>
       ) : null}

@@ -103,4 +103,36 @@ describe("Cloud Run packaging", () => {
     expect(pkg.dependencies?.tsx).toEqual(expect.any(String));
     expect(pkg.devDependencies?.tsx).toBeUndefined();
   });
+
+  it("resource-caps AC29: Packaging keeps caps out of the image and names them in env", () => {
+    const docker = readRoot("Dockerfile");
+    expect(docker).not.toContain("CAP_USER_COUNT=");
+    expect(docker).not.toContain("CAP_USER_BUDGET_COUNT=");
+    expect(docker).not.toContain("CAP_CATEGORY_COUNT=");
+    expect(docker).not.toContain("CAP_ENTRY_COUNT=");
+
+    const example = readRoot(".env.example");
+    expect(example).toContain("CAP_USER_COUNT");
+    expect(example).toContain("CAP_USER_BUDGET_COUNT");
+    expect(example).toContain("CAP_CATEGORY_COUNT");
+    expect(example).toContain("CAP_ENTRY_COUNT");
+    expect(example).toContain("3");
+    expect(example).toContain("2");
+    expect(example).toContain("4");
+    expect(example).toContain("not secret");
+
+    const runbook = readRoot("specs/runbooks/cloud-run.md");
+    const envVarsLine = runbook
+      .split("\n")
+      .find((line) => line.includes("--set-env-vars"));
+    expect(envVarsLine).toContain("CAP_USER_COUNT");
+    expect(envVarsLine).toContain("CAP_USER_BUDGET_COUNT");
+    expect(envVarsLine).toContain("CAP_CATEGORY_COUNT");
+    expect(envVarsLine).toContain("CAP_ENTRY_COUNT");
+
+    const ux = readRoot("specs/ui-ux.md");
+    expect(ux).toContain("The household is full (N users).");
+    expect(ux).toContain("Sign-up is full (N users).");
+    expect(ux).not.toContain("full (10 users)");
+  });
 });

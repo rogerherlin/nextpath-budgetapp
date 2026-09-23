@@ -48,7 +48,7 @@ Grant:
 
 - `roles/datastore.user` — Firestore reads/writes via Admin SDK
 - `roles/secretmanager.secretAccessor` — Secret Manager env
-- `roles/firebaseauth.admin` — Admin Auth `verifyIdToken` plus `deleteUser` when the 10-profile cap rejects a sign-up
+- `roles/firebaseauth.admin` — Admin Auth `verifyIdToken` plus `deleteUser` when the household user cap rejects a sign-up
 
 ```text
 PROJECT_NUMBER=$(gcloud projects describe PROJECT_ID --format='value(projectNumber)')
@@ -80,7 +80,7 @@ The Cloud Run SA must be able to access those secret versions (`roles/secretmana
 
 ## Cloud Run
 
-Public Firebase web config is ordinary env (not secret). `--allow-unauthenticated` exposes the **UI**; every `/api/*` except `/api/health` and `/api/config` still requires a Firebase ID token.
+Public Firebase web config and resource caps are ordinary env (not secret). `--allow-unauthenticated` exposes the **UI**; every `/api/*` except `/api/health` and `/api/config` still requires a Firebase ID token. Omit a cap to keep its default: 3 users, 2 owned budgets, 4 categories, and 4 entries.
 
 ```text
 gcloud run deploy budgetapp \
@@ -90,7 +90,7 @@ gcloud run deploy budgetapp \
   --allow-unauthenticated \
   --service-account=budgetapp-run@PROJECT_ID.iam.gserviceaccount.com \
   --set-secrets=GEMINI_API_KEY=gemini-api-key:latest,MODERATOR_EMAIL=moderator-email:latest \
-  --set-env-vars=FIREBASE_WEB_API_KEY=WEB_API_KEY,FIREBASE_WEB_AUTH_DOMAIN=PROJECT_ID.firebaseapp.com,FIREBASE_WEB_PROJECT_ID=PROJECT_ID
+  --set-env-vars=FIREBASE_WEB_API_KEY=WEB_API_KEY,FIREBASE_WEB_AUTH_DOMAIN=PROJECT_ID.firebaseapp.com,FIREBASE_WEB_PROJECT_ID=PROJECT_ID,CAP_USER_COUNT=3,CAP_USER_BUDGET_COUNT=2,CAP_CATEGORY_COUNT=4,CAP_ENTRY_COUNT=4
 ```
 
 Cloud Run injects `PORT` (default listen in-app is 8080) and `GOOGLE_CLOUD_PROJECT`. Health is TCP on `PORT`; `GET /api/health` returns `{"ok":true}`.

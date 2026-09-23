@@ -375,6 +375,43 @@ describe("AC23: Key never uses VITE_ prefix", () => {
   });
 });
 
+describe("AC28: Apply shows the category cap error", () => {
+  it("AC28: Apply shows the category cap error", () => {
+    resetStore([
+      {
+        ...emptyBudget("b1"),
+        incomeCategories: [
+          { id: "c1", name: "Salary" },
+          { id: "c2", name: "Gift" },
+          { id: "c3", name: "Interest" },
+          { id: "c4", name: "Other" },
+        ],
+      },
+    ]);
+    const remaining = applySuggestedItems("b1", [
+      row({
+        kind: "income",
+        categoryName: "Bonus",
+        amountText: "10,00",
+      }),
+    ]);
+    expect(remaining).toEqual([
+      {
+        kind: "income",
+        categoryId: null,
+        categoryName: "Bonus",
+        comment: "",
+        amountText: "10,00",
+        dateText: "",
+        error: "A budget can have at most 4 income categories.",
+      },
+    ]);
+    expect(
+      listBudgets().find((item) => item.id === "b1")?.incomeCategories,
+    ).toHaveLength(4);
+  });
+});
+
 describe("AC24: .env is gitignored", () => {
   it("AC24: .env is gitignored", () => {
     const gitignore = readFileSync(

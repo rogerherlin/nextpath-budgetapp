@@ -20,7 +20,6 @@ import {
 } from "./geminiSuggest";
 import type { VerifiedToken } from "./firebaseAdmin";
 import {
-  MAX_PROFILES,
   copyBudgetForActor,
   createBudgetForActor,
   deleteBudgetForActor,
@@ -37,6 +36,11 @@ import {
   sortProfiles,
   type AppRepo,
 } from "./repo";
+import {
+  DEFAULT_RESOURCE_CAPS,
+  householdFullMessage,
+  type ResourceCaps,
+} from "./resourceCaps";
 import type { Actor, Budget, Category, DateParts, Entry, Grant, GrantRole, UserProfile } from "./types";
 
 export { AgentMemoryStore };
@@ -68,6 +72,7 @@ export type HttpDispatchInput = {
   agentMemory?: AgentMemoryStore;
   nowMs?: () => number;
   maxAgentMs?: number;
+  caps?: ResourceCaps;
 };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -185,12 +190,16 @@ function actorFrom(
   return actorFromVerifiedSession(profile, isModerator);
 }
 
+function capsOf(input: HttpDispatchInput): ResourceCaps {
+  return input.caps ?? DEFAULT_RESOURCE_CAPS;
+}
+
 async function maybeDeleteOrphan(
   input: HttpDispatchInput,
   uid: string,
 ): Promise<HttpDispatchResult> {
   await input.deleteUser(uid);
-  return errorResult(403, "The household is full (10 users).");
+  return errorResult(403, householdFullMessage(capsOf(input).userCount));
 }
 
 type Session =
@@ -242,7 +251,7 @@ async function requireProfile(
   }
   if (session.profile === null) {
     const count = await input.repo.profileCount();
-    if (count >= MAX_PROFILES) {
+    if (count >= capsOf(input).userCount) {
       return { ok: false, result: await maybeDeleteOrphan(input, session.uid) };
     }
     return { ok: false, result: errorResult(403, "Register first.") };
@@ -306,7 +315,7 @@ async function dispatchRegister(
     );
   }
   const count = await input.repo.profileCount();
-  if (count >= MAX_PROFILES) {
+  if (count >= capsOf(input).userCount) {
     return maybeDeleteOrphan(input, session.uid);
   }
   const profile: UserProfile = {
@@ -332,7 +341,7 @@ async function dispatchMe(
   }
   if (session.profile === null) {
     const count = await input.repo.profileCount();
-    if (count >= MAX_PROFILES) {
+    if (count >= capsOf(input).userCount) {
       return maybeDeleteOrphan(input, session.uid);
     }
     return errorResult(403, "Register first.");
@@ -393,19 +402,26 @@ async function dispatchApi(
       return errorResult(503, "Firebase web config is missing.");
     }
     const emulatorHost = (input.firebaseAuthEmulatorHost ?? "").trim();
-    if (emulatorHost === "") {
-      return jsonResult(
-        200,
-        JSON.stringify({ apiKey, authDomain, projectId }),
-      );
-    }
-    const authEmulatorHost = emulatorHost.startsWith("http://") ||
-      emulatorHost.startsWith("https://")
-      ? emulatorHost
-      : `http://${emulatorHost}`;
+    const caps = capsOf(input);
+    const authEmulatorHost =
+      emulatorHost === ""
+        ? undefined
+        : emulatorHost.startsWith("http://") ||
+            emulatorHost.startsWith("https://")
+          ? emulatorHost
+          : `http://${emulatorHost}`;
     return jsonResult(
       200,
-      JSON.stringify({ apiKey, authDomain, projectId, authEmulatorHost }),
+      JSON.stringify({
+        apiKey,
+        authDomain,
+        projectId,
+        ...(authEmulatorHost === undefined ? {} : { authEmulatorHost }),
+        userCount: caps.userCount,
+        userBudgetCount: caps.userBudgetCount,
+        categoryCount: caps.categoryCount,
+        entryCount: caps.entryCount,
+      }),
     );
   }
   if (!input.pathname.startsWith("/api/")) {
@@ -502,6 +518,7 @@ async function dispatchApi(
             : undefined,
       },
       () => createIdFrom(input),
+      capsOf(input),
     );
     if (!result.ok) {
       return errorResult(400, result.error);
@@ -511,9 +528,15 @@ async function dispatchApi(
 
   const budgetCopy = /^\/api\/budgets\/([^/]+)\/copy$/.exec(input.pathname);
   if (budgetCopy !== null && input.method === "POST") {
-    const result = await copyBudgetForActor(repo, actor, budgetCopy[1] ?? "");
+    const result = await copyBudgetForActor(
+      repo,
+      actor,
+      budgetCopy[1] ?? "",
+      capsOf(input),
+    );
     if (!result.ok) {
-      const status = result.error === "Not allowed." ? 403 : 404;
+      const status =
+        result.status ?? (result.error === "Not allowed." ? 403 : 404);
       return errorResult(status, result.error);
     }
     return jsonResult(201, JSON.stringify(result.budget));
@@ -607,6 +630,7 @@ async function dispatchApi(
       actor,
       existing.value.id,
       next,
+      capsOf(input),
     );
     if (!result.ok) {
       return errorResult(result.status, result.error);
@@ -660,6 +684,7 @@ async function dispatchApi(
       nowMs: input.nowMs ?? Date.now,
       maxMs: input.maxAgentMs ?? AGENT_MAX_MS,
       secrets,
+      caps: capsOf(input),
     });
     if ("error" in run) {
       return errorResult(run.status, run.error);

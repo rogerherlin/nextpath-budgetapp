@@ -9,3 +9,4 @@
 - `updateBudget` rejects an empty name, but lifecycle.md has no named AC or test for that.
 - AGENTS.md Commands still list only `npm start` / test / tsc; `build` and `serve` exist now.
 - `budgets.ts` still uses `FALLBACK_ACTOR` (moderator `local`) when copy/delete/create are called without an actor.
+- auth-accounts.md, service-readiness.md, architecture.md, and AGENTS.md still say a fixed 10-user household; resource-caps.md is the cap spec (default 3) and only ui-ux.md is listed for the “10 users” wording update.

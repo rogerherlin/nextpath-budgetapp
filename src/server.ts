@@ -15,6 +15,7 @@ import { MAX_REQUEST_BYTES } from "./serverAccess";
 import { isModeratorEmail } from "./acl";
 import { migrateJsonIfNeeded } from "./migrate";
 import { APP_BUDGETS_FILE } from "./paths";
+import { readResourceCaps } from "./resourceCaps";
 import {
   readFirebaseAuthEmulatorHost,
   readFirebaseWebConfig,
@@ -57,6 +58,7 @@ const repo = createAppRepo();
 const agentMemory = new AgentMemoryStore();
 const web = readFirebaseWebConfig();
 const moderatorEmail = readModeratorEmail();
+const caps = readResourceCaps();
 
 void (async () => {
   const profiles = await repo.listProfiles();
@@ -88,6 +90,7 @@ const server = createServer((req, res) => {
       verifyIdToken,
       deleteUser: deleteAuthUser,
       agentMemory,
+      caps,
     });
     res.writeHead(result.status, result.headers);
     res.end(result.body);

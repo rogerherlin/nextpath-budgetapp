@@ -578,3 +578,56 @@ describe("AC17: ACL is not a model refusal", () => {
     });
   });
 });
+
+describe("resource-caps AC22: Agent save_budget uses the same category cap", () => {
+  it("resource-caps AC22: Agent save_budget uses the same category cap", async () => {
+    await withTempDir(async (dir) => {
+      const repo = new MemoryRepo();
+      await repo.saveProfile(ALICE);
+      const incomeCategories = [0, 1, 2, 3].map((index) => ({
+        id: `c${index}`,
+        name: `Cat ${index}`,
+      }));
+      await repo.saveBudget(
+        emptyBudget("b1", "Summer", "uid-alice", { incomeCategories }),
+      );
+      const result = await dispatch({
+        method: "POST",
+        pathname: "/api/agent/run",
+        authorization: "Bearer alice",
+        body: JSON.stringify({
+          steps: [
+            {
+              tool: "save_budget",
+              arguments: {
+                budgetId: "b1",
+                incomeCategories: [
+                  ...incomeCategories,
+                  { id: "c4", name: "Bonus" },
+                ],
+              },
+            },
+          ],
+        }),
+        distDir: join(dir, "dist"),
+        repo,
+      });
+      expect(result.status).toBe(200);
+      const body = JSON.parse(result.body) as {
+        steps: Array<{
+          tool: string;
+          ok: boolean;
+          status?: number;
+          error?: string;
+        }>;
+      };
+      expect(body.steps[0]).toEqual({
+        tool: "save_budget",
+        ok: false,
+        status: 400,
+        error: "A budget can have at most 4 income categories.",
+      });
+      expect((await repo.getBudgetDoc("b1"))?.incomeCategories).toHaveLength(4);
+    });
+  });
+});

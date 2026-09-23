@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase/app";
 import { trackBusy } from "./busy";
 import { clientFetch } from "./clientFetch";
+import { clientCapsFromConfig, setClientResourceCaps } from "./resourceCaps";
 import {
   connectAuthEmulator,
   createUserWithEmailAndPassword,
@@ -47,6 +48,7 @@ export async function loadFirebaseAuth(): Promise<void> {
     projectId: string;
     authEmulatorHost?: unknown;
   };
+  setClientResourceCaps(clientCapsFromConfig(data));
   if (getApps().length === 0) {
     initializeApp({
       apiKey: config.apiKey,

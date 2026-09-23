@@ -285,3 +285,34 @@ describe("AC15: Reject expense entry with income category", () => {
     expect(budget?.expenseEntries).toEqual([]);
   });
 });
+
+describe("AC23: addEntry stops at the cap", () => {
+  it("AC23: addEntry stops at the cap", () => {
+    resetStore([
+      {
+        ...emptyBudget("b1"),
+        expenseCategories: [{ id: "c1", name: "Rent" }],
+        expenseEntries: [1, 2, 3, 4].map((index) => ({
+          id: `e${index}`,
+          categoryId: "c1",
+          comment: "x",
+          amountCents: 1,
+          date: null,
+        })),
+      },
+    ]);
+    const result = addEntry("b1", "expense", {
+      categoryId: "c1",
+      comment: "x",
+      amountCents: 1,
+      date: null,
+    });
+    expect(result).toEqual({
+      ok: false,
+      error: "A budget can have at most 4 expense entries.",
+    });
+    expect(
+      listBudgets().find((item) => item.id === "b1")?.expenseEntries,
+    ).toHaveLength(4);
+  });
+});

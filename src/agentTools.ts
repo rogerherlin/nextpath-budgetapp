@@ -6,6 +6,7 @@ import {
   redactSecrets,
 } from "./serverAccess";
 import { getBudget, saveWritableBudget, type AppRepo } from "./repo";
+import { DEFAULT_RESOURCE_CAPS, type ResourceCaps } from "./resourceCaps";
 import type { Actor, Budget, Category, DateParts, Entry } from "./types";
 
 export type AgentStepResult =
@@ -114,6 +115,7 @@ async function runSaveBudget(
   actor: Actor,
   repo: AppRepo,
   args: Record<string, unknown>,
+  caps: ResourceCaps,
 ): Promise<AgentStepResult> {
   if (typeof args.budgetId !== "string") {
     return deny("save_budget", 400, "Invalid tool arguments.");
@@ -167,7 +169,7 @@ async function runSaveBudget(
     }
     next = { ...next, expenseCategories: cats };
   }
-  const saved = await saveWritableBudget(repo, actor, existing.id, next);
+  const saved = await saveWritableBudget(repo, actor, existing.id, next, caps);
   if (!saved.ok) {
     return deny("save_budget", saved.status, saved.error);
   }
@@ -210,12 +212,13 @@ async function executeTool(
   memory: AgentMemoryStore,
   tool: string,
   args: Record<string, unknown>,
+  caps: ResourceCaps,
 ): Promise<AgentStepResult> {
   if (tool === "get_budget") {
     return runGetBudget(actor, repo, args);
   }
   if (tool === "save_budget") {
-    return runSaveBudget(actor, repo, args);
+    return runSaveBudget(actor, repo, args, caps);
   }
   if (tool === "remember") {
     return runRemember(actor, memory, args);
@@ -232,9 +235,11 @@ export async function executeAgentRun(input: {
   maxMs?: number;
   maxSteps?: number;
   secrets?: readonly string[];
+  caps?: ResourceCaps;
 }): Promise<AgentRunResult> {
   const maxSteps = input.maxSteps ?? AGENT_MAX_STEPS;
   const maxMs = input.maxMs ?? AGENT_MAX_MS;
+  const caps = input.caps ?? DEFAULT_RESOURCE_CAPS;
   if (!Array.isArray(input.rawSteps)) {
     return { status: 400, error: "Invalid tool arguments." };
   }
@@ -256,7 +261,9 @@ export async function executeAgentRun(input: {
       continue;
     }
     const args = asRecord(raw.arguments) ?? {};
-    steps.push(await executeTool(input.actor, input.repo, input.memory, tool, args));
+    steps.push(
+      await executeTool(input.actor, input.repo, input.memory, tool, args, caps),
+    );
   }
   const secrets = input.secrets ?? [];
   const encoded = redactSecrets(JSON.stringify(steps), secrets);

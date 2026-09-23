@@ -24,13 +24,13 @@ Left-aligned card, comfortable spacing. Keyboard: tab through fields; primary ac
 
 - Heading `Sign in`. Fields labelled `Email`, `Password`, and `Display name`. Buttons `Sign in` and `Register`.
 - Sign-in failure: `.field-error` with `Could not sign in.`
-- Register posts `{ "displayName" }` with a Bearer token. Household-full error shows `.field-error` with `The household is full (10 users).`
+- Register posts `{ "displayName" }` with a Bearer token. Household-full error shows `.field-error` with `The household is full (N users).` `N` is `CAP_USER_COUNT` (default 3).
 
 **Home**
 
 - Title `Budgets`. Buttons `Account` and `Sign out` sit on the right of the session bar. `Sign out` returns to the login heading.
 - The signed-in viewer’s `displayName` and `email` sit in a `.session-bar` header above the page title (Home and open budget), stacked, with `Account` then `Sign out` on the right. Both are `button button--secondary`.
-- Moderator: heading `Household` with emails, a `From text` checkbox per user, and `Delete user` on other members (not self). Confirm: `Delete user “{email}”? Their budgets will also be deleted.` At 10 profiles: `Sign-up is full (10 users).`
+- Moderator: heading `Household` with emails, a `From text` checkbox per user, and `Delete user` on other members (not self). Confirm: `Delete user “{email}”? Their budgets will also be deleted.` At the user cap: `Sign-up is full (N users).` `N` is `CAP_USER_COUNT` (default 3).
 - `New budget` opens a short form on the same page: `Name` (required), `Description`, `Start`, `End`, `Target leftover (EUR)`. Buttons `Save` and `Cancel`. Labels stack above inputs.
 - Delete uses `window.confirm` with exactly: `Delete budget “{name}”? This cannot be undone.` OK runs delete; Cancel does nothing.
 

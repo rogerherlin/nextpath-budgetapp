@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { listBudgets, resetStore } from "./budgets";
 import { addCategory, deleteCategory, updateCategory } from "./categories";
+import { DEFAULT_RESOURCE_CAPS, setClientResourceCaps } from "./resourceCaps";
 import type { Budget } from "./types";
 
 function emptyBudget(id: string): Budget {
@@ -20,6 +21,10 @@ function emptyBudget(id: string): Budget {
     expenseEntries: [],
   };
 }
+
+afterEach(() => {
+  setClientResourceCaps(DEFAULT_RESOURCE_CAPS);
+});
 
 describe("AC1: Add income category", () => {
   it("AC1: Add income category", () => {
@@ -218,5 +223,36 @@ describe("AC15: Reject empty name on rename", () => {
     expect(budget?.incomeCategories.find((item) => item.id === "c1")?.name).toBe(
       "Salary",
     );
+  });
+});
+
+describe("AC23: addCategory stops at the cap", () => {
+  it("AC23: addCategory stops at the cap", () => {
+    resetStore([
+      {
+        ...emptyBudget("b1"),
+        incomeCategories: [
+          { id: "c1", name: "Salary" },
+          { id: "c2", name: "Gift" },
+          { id: "c3", name: "Interest" },
+          { id: "c4", name: "Other" },
+        ],
+      },
+    ]);
+    const blocked = addCategory("b1", "income", { name: "Bonus" });
+    expect(blocked).toEqual({
+      ok: false,
+      error: "A budget can have at most 4 income categories.",
+    });
+    expect(
+      listBudgets().find((item) => item.id === "b1")?.incomeCategories,
+    ).toHaveLength(4);
+
+    setClientResourceCaps({ ...DEFAULT_RESOURCE_CAPS, categoryCount: 6 });
+    const allowed = addCategory("b1", "income", { name: "Bonus" });
+    expect(allowed).toEqual({ ok: true });
+    expect(
+      listBudgets().find((item) => item.id === "b1")?.incomeCategories,
+    ).toHaveLength(5);
   });
 });

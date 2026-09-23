@@ -2,7 +2,7 @@
 
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BUSY_SPINNER_DELAY_MS, resetBusyForTests } from "./busy";
+import { BUSY_SPINNER_DELAY_MS, BUSY_SPINNER_HIDE_DELAY_MS, resetBusyForTests } from "./busy";
 import { clientFetch } from "./clientFetch";
 import { BusyOverlay } from "./ui/BusyOverlay";
 
@@ -84,7 +84,8 @@ describe("delayed busy spinner", () => {
     expect(screen.getByRole("status").textContent).toBe("Loading.");
   });
 
-  it("AC3: Overlay hides when the last call finishes", async () => {
+  it("AC3: Overlay hides 250ms after the last call finishes", async () => {
+    expect(BUSY_SPINNER_HIDE_DELAY_MS).toBe(250);
     render(<BusyOverlay />);
     const pending = deferred<Response>();
     vi.stubGlobal(
@@ -99,6 +100,14 @@ describe("delayed busy spinner", () => {
     pending.resolve(fakeResponse);
     await act(async () => {
       await done;
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_HIDE_DELAY_MS - 1);
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(document.querySelector(".busy-overlay")).toBeNull();
   });
@@ -140,6 +149,10 @@ describe("delayed busy spinner", () => {
     await act(async () => {
       await done.catch(() => undefined);
     });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_HIDE_DELAY_MS);
+    });
     expect(document.querySelector(".busy-overlay")).toBeNull();
   });
 
@@ -157,6 +170,44 @@ describe("delayed busy spinner", () => {
     });
     await act(async () => {
       await done;
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_HIDE_DELAY_MS);
+    });
+    expect(document.querySelector(".busy-overlay")).toBeNull();
+  });
+
+  it("AC8: Sequential follow-up keeps the spinner", async () => {
+    render(<BusyOverlay />);
+    const first = deferred<Response>();
+    const second = deferred<Response>();
+    const fetchMock = vi.fn();
+    fetchMock.mockReturnValueOnce(first.promise);
+    fetchMock.mockReturnValueOnce(second.promise);
+    vi.stubGlobal("fetch", fetchMock);
+    const firstDone = clientFetch("/api/a");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_DELAY_MS);
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    first.resolve(fakeResponse);
+    await act(async () => {
+      await firstDone;
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    const secondDone = clientFetch("/api/b");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_HIDE_DELAY_MS);
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    second.resolve(fakeResponse);
+    await act(async () => {
+      await secondDone;
+    });
+    expect(document.querySelector(".busy-overlay")).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BUSY_SPINNER_HIDE_DELAY_MS);
     });
     expect(document.querySelector(".busy-overlay")).toBeNull();
   });

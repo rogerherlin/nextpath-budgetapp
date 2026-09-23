@@ -15,7 +15,7 @@ Browser calls to the Node API (and Firebase Auth) can take seconds. The MVP UI s
 
 ## Proposed Change
 
-One in-flight counter for all browser network work. After **400ms** of continuous in-flight work, show a fixed overlay with a teal CSS spinner and status text `Loading.`. When the last call finishes (success or failure), hide the overlay immediately. Fast calls that finish before 400ms never show it. Overlapping calls do not restart the delay.
+One in-flight counter for all browser network work. After **400ms** of continuous in-flight work, show a fixed overlay with a teal CSS spinner and status text `Loading.`. Once shown, keep it visible until the counter has been **0 for 250ms** (hide grace), so sequential calls in one burst (hydrate, persist PUTs) do not flicker. Fast calls that finish before 400ms never show it. Overlapping calls do not restart the show delay.
 
 ## Acceptance Criteria
 
@@ -29,9 +29,13 @@ One in-flight counter for all browser network work. After **400ms** of continuou
 **When** 400ms elapse
 **Then** an element with class `busy-overlay` is in the document; it contains an element with class `spinner`; a `status` role with text exactly `Loading.` is present
 
-### AC3: Overlay hides when the last call finishes
+### AC3: Overlay hides 250ms after the last call finishes
 **Given** the overlay from AC2 is visible
 **When** that `fetch` resolves
+**Then** `.busy-overlay` is still present
+**When** 249ms elapse with no new in-flight work
+**Then** `.busy-overlay` is still present
+**When** 1 more ms elapses (250ms idle)
 **Then** `document.querySelector(".busy-overlay")` is `null`
 
 ### AC4: Overlapping calls do not restart the delay
@@ -39,10 +43,19 @@ One in-flight counter for all browser network work. After **400ms** of continuou
 **When** call B starts at that moment and call A then resolves while B is still in flight
 **Then** `document.querySelector(".busy-overlay")` is still present (no second 400ms wait)
 
-### AC5: Failed fetch still clears busy
+### AC5: Failed fetch still clears busy after the hide grace
 **Given** `BusyOverlay` is mounted and `clientFetch` is in flight for 400ms (overlay visible)
 **When** the mocked `fetch` rejects
+**Then** `.busy-overlay` is still present
+**When** 250ms elapse with no new in-flight work
 **Then** `document.querySelector(".busy-overlay")` is `null`
+
+### AC8: Sequential follow-up keeps the spinner
+**Given** the overlay is visible for call A
+**When** A resolves and call B starts before 250ms of idle
+**Then** `.busy-overlay` stays present (no second 400ms show wait)
+**When** B resolves and 250ms of idle elapse
+**Then** `.busy-overlay` is `null`
 
 ### AC6: Browser HTTP goes through `clientFetch`
 **Given** the client source files `src/App.tsx`, `src/authClient.ts`, `src/clientStore.ts`, `src/ui/LoginScreen.tsx`, `src/ui/BudgetScreen.tsx`, `src/ui/FromTextTab.tsx`
@@ -52,16 +65,16 @@ One in-flight counter for all browser network work. After **400ms** of continuou
 ### AC7: Auth credential calls increment the same counter
 **Given** `BusyOverlay` is mounted
 **When** `signInWithPassword` is invoked and the Firebase Auth promise stays unresolved for 400ms
-**Then** `.busy-overlay` is present; when that promise resolves, `.busy-overlay` is `null`
+**Then** `.busy-overlay` is present; when that promise resolves, `.busy-overlay` stays until 250ms of idle, then is `null`
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
 | `specs/ui-ux.md` | Feedback: delayed spinner for client network work (400ms) |
-| `src/busy.ts` | In-flight counter, `BUSY_SPINNER_DELAY_MS` `400`, `trackBusy`, subscribe |
+| `src/busy.ts` | In-flight counter, `BUSY_SPINNER_DELAY_MS` `400`, `BUSY_SPINNER_HIDE_DELAY_MS` `250`, `trackBusy`, subscribe |
 | `src/clientFetch.ts` | `clientFetch` wraps `globalThis.fetch` with `trackBusy` |
-| `src/ui/BusyOverlay.tsx` | Overlay after delay while counter > 0 |
+| `src/ui/BusyOverlay.tsx` | Show after 400ms; hide only after 250ms idle |
 | `src/App.tsx` | Render `BusyOverlay`; use `clientFetch` |
 | `src/authClient.ts` | `clientFetch` for `/api/config`; `trackBusy` on sign-in, register, sign-out |
 | `src/clientStore.ts` | `clientFetch` |
@@ -85,11 +98,12 @@ One in-flight counter for all browser network work. After **400ms** of continuou
 |----------|-----------|-------|------|------|-------|
 | BusyOverlay + clientFetch | AC1 fast | overlay mounted | fetch resolves immediately; advance 399ms | no `.busy-overlay` | fake timers, stub fetch |
 | BusyOverlay + clientFetch | AC2 slow | overlay mounted | fetch pending; advance 400ms | overlay, `.spinner`, status `Loading.` | fake timers, hanging fetch |
-| BusyOverlay + clientFetch | AC3 hide | AC2 visible | resolve fetch | overlay gone | fake timers |
+| BusyOverlay + clientFetch | AC3 hide | AC2 visible | resolve fetch; 249ms; 250ms | still shown; still shown; gone | fake timers |
 | BusyOverlay + clientFetch | AC4 overlap | A visible 400ms | start B, resolve A | overlay still present | fake timers |
-| BusyOverlay + clientFetch | AC5 reject | overlay visible | reject fetch | overlay gone | fake timers |
+| BusyOverlay + clientFetch | AC5 reject | overlay visible | reject fetch; 250ms idle | still shown then gone | fake timers |
 | client source | AC6 scan | listed files | read text | no `fetch(`; `clientFetch` imported | fs |
-| BusyOverlay + signIn | AC7 auth | overlay mounted | hanging Auth sign-in 400ms then resolve | overlay then gone | fake timers, mock firebase/auth |
+| BusyOverlay + signIn | AC7 auth | overlay mounted | hanging Auth sign-in 400ms then resolve; 250ms idle | overlay then gone | fake timers, mock firebase/auth |
+| BusyOverlay + clientFetch | AC8 sequential | A visible | A resolves, B starts, B resolves, 250ms | stays through B; gone after idle | fake timers |
 
 ### Integration Tests
 
@@ -110,6 +124,7 @@ One in-flight counter for all browser network work. After **400ms** of continuou
 ### Test Data
 - Hanging `fetch` via deferred `Promise`
 - `BUSY_SPINNER_DELAY_MS` is exactly `400`
+- `BUSY_SPINNER_HIDE_DELAY_MS` is exactly `250`
 
 ## Related Documentation
 - **Tier 1:** [specs/ui-ux.md](../ui-ux.md), [specs/architecture.md](../architecture.md)

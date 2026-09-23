@@ -1,4 +1,5 @@
 export const BUSY_SPINNER_DELAY_MS = 400;
+export const BUSY_SPINNER_HIDE_DELAY_MS = 250;
 
 let count = 0;
 const listeners = new Set<() => void>();
